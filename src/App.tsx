@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Filesystem } from '@capacitor/filesystem'
 import { registerPlugin } from '@capacitor/core'
+import { FilePicker } from '@capawesome/capacitor-file-picker'
 import { GitHubProvider, useGitHub } from './lib/GitHubProvider'
-import { History, FileText, Settings, Github, Home } from 'lucide-react'
+import { History as HistoryIcon, FileText, Settings, Github, Home } from 'lucide-react'
 import { HistoryView } from './components/HistoryView'
 import { SettingsView } from './components/SettingsView'
 import { RepoSelector } from './components/RepoSelector'
@@ -14,6 +15,7 @@ import './index.css'
 interface ExternalStoragePermissionPlugin {
   requestAllFilesAccess(): Promise<void>;
   checkAllFilesAccess(): Promise<{ granted: boolean }>;
+  resolveUriToPath(options: { uri: string }): Promise<{ path: string }>;
 }
 
 const ExternalStoragePermission = registerPlugin<ExternalStoragePermissionPlugin>('ExternalStoragePermission');
@@ -29,11 +31,19 @@ type TabType = 'home' | 'changes' | 'history' | 'settings';
 
 function AppContent() {
   const { isAuthenticated, login, isLoading, openWebLogin } = useGitHub();
-  const [token, setToken] = useState('');
+  const [tokenInput, setTokenInput] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
-  const [localPath, setLocalPath] = useState<string | null>(localStorage.getItem('git_local_path'));
+  const [localPath, setLocalPath] = useState<string | null>(null);
   const [currentBranch, setCurrentBranch] = useState('main');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    if (selectedRepo) {
+      const path = localStorage.getItem(`git_local_path_${selectedRepo.full_name}`);
+      setLocalPath(path);
+    }
+  }, [selectedRepo]);
 
   useEffect(() => {
     const requestPermissions = async () => {
@@ -57,16 +67,39 @@ function AppContent() {
     }
   }, [isAuthenticated]);
 
-  const updateLocalPath = (path: string) => {
-    setLocalPath(path);
-    localStorage.setItem('git_local_path', path);
+  const handlePickPath = async () => {
+    if (!selectedRepo) return;
+    try {
+      const result = await FilePicker.pickDirectory();
+      if (result.path) {
+        let finalPath = result.path;
+        if (finalPath.startsWith('content://')) {
+          try {
+            const resolved = await ExternalStoragePermission.resolveUriToPath({ uri: finalPath });
+            finalPath = resolved.path;
+          } catch (e) {
+            console.warn('Path resolution failed, using original', e);
+          }
+        }
+
+        setLocalPath(finalPath);
+        localStorage.setItem(`git_local_path_${selectedRepo.full_name}`, finalPath);
+      }
+    } catch (error) {
+      console.error('Pick path failed', error);
+    }
   };
 
   const handleOpenExplorer = () => {
     if (localPath) {
       alert(`Opening Local Explorer: ${localPath}`);
-      // In a real app, this would use a native intent
+    } else {
+      handlePickPath();
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
   };
 
   if (isLoading) {
@@ -98,14 +131,14 @@ function AppContent() {
           <input
             type="password"
             placeholder="Paste your Personal Access Token here"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
+            value={tokenInput}
+            onChange={(e) => setTokenInput(e.target.value)}
             style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-color)', marginBottom: '12px', background: 'var(--bg-color)', color: 'inherit' }}
           />
           <button
             className="btn"
             style={{ width: '100%', background: 'var(--surface-color)', border: '1px solid var(--border-color)' }}
-            onClick={() => login(token)}
+            onClick={() => login(tokenInput)}
           >
             Connect with Token
           </button>
@@ -132,15 +165,29 @@ function AppContent() {
         repoName={selectedRepo.name}
         currentBranch={currentBranch}
         localPath={localPath}
-        onRefresh={() => { }}
+        onRefresh={handleRefresh}
         onSelectRepo={() => setSelectedRepo(null)}
         onBranchChange={setCurrentBranch}
         onOpenInExplorer={handleOpenExplorer}
+        onPickPath={handlePickPath}
       />
 
       <main className="mobile-content" style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
-        {activeTab === 'home' && <HomeView localPath={localPath} onPathSelect={updateLocalPath} />}
-        {activeTab === 'changes' && <ChangesView currentBranch={currentBranch} />}
+        {activeTab === 'home' && (
+          <HomeView
+            key={refreshKey} // Force remount on sync
+            localPath={localPath}
+            onPathSelect={handlePickPath}
+          />
+        )}
+        {activeTab === 'changes' && (
+          <ChangesView
+            currentBranch={currentBranch}
+            localPath={localPath}
+            owner={selectedRepo.owner.login}
+            repoName={selectedRepo.name}
+          />
+        )}
         {activeTab === 'history' && <HistoryView owner={selectedRepo.owner.login} repo={selectedRepo.name} />}
         {activeTab === 'settings' && <SettingsView />}
       </main>
@@ -164,7 +211,7 @@ function AppContent() {
           className={`tab-item ${activeTab === 'history' ? 'active' : ''}`}
           onClick={() => setActiveTab('history')}
         >
-          <History size={22} />
+          <HistoryIcon size={22} />
           <span>History</span>
         </button>
         <button

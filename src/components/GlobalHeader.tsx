@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, RefreshCw, GitBranch, ShieldCheck, ArrowUp, ArrowDown, ExternalLink, FolderOpen, Plus, Search } from 'lucide-react';
+import { ChevronDown, RefreshCw, GitBranch, ShieldCheck, ExternalLink, FolderOpen, Plus, Search, MoreHorizontal, Download } from 'lucide-react';
+import { GitManager } from '../lib/GitManager';
 import { useGitHub } from '../lib/GitHubProvider';
 import { Browser } from '@capacitor/browser';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,9 +14,10 @@ interface RepoSummaryProps {
     onSelectRepo: () => void;
     onBranchChange: (branch: string) => void;
     onOpenInExplorer: () => void;
+    onPickPath: () => void;
 }
 
-type SyncState = 'fetch' | 'pull' | 'push' | 'synced';
+type SyncState = 'fetch' | 'synced';
 
 export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     owner,
@@ -25,13 +27,16 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     onRefresh,
     onSelectRepo,
     onBranchChange,
-    onOpenInExplorer
+    onOpenInExplorer,
+    onPickPath
 }) => {
-    const { octokit } = useGitHub();
+    const { octokit, token } = useGitHub();
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [syncState, setSyncState] = useState<SyncState>('fetch');
+    const [syncStatus, setSyncStatus] = useState('');
     const [showBranchMenu, setShowBranchMenu] = useState(false);
-    const [branches, setBranches] = useState<string[]>(['main', 'dev', 'feature-login']);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [branches, setBranches] = useState<string[]>(['main']);
     const [branchSearch, setBranchSearch] = useState('');
 
     useEffect(() => {
@@ -53,18 +58,38 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     };
 
     const handleSyncAction = async () => {
+        if (!localPath || !octokit) {
+            if (!localPath) onPickPath();
+            return;
+        }
+
         setIsRefreshing(true);
-        await onRefresh();
-        setTimeout(() => {
+        setSyncStatus('Starting...');
+        try {
+            // Use the new robust Octokit + ZIP Sync
+            await GitManager.sync(
+                token || '',
+                owner,
+                repoName,
+                currentBranch,
+                localPath,
+                (p) => setSyncStatus(p)
+            );
+
+            setSyncState('synced');
+            onRefresh(); // Refresh the file list in HomeView
+        } catch (e: any) {
+            console.error('Sync error:', e);
+            alert(`Sync Failed: ${e.message}`);
+        } finally {
             setIsRefreshing(false);
-            const states: SyncState[] = ['fetch', 'pull', 'synced', 'push'];
-            const nextIndex = (states.indexOf(syncState) + 1) % states.length;
-            setSyncState(states[nextIndex]);
-        }, 1500);
+            setSyncStatus('');
+        }
     };
 
     const viewOnGitHub = () => {
         Browser.open({ url: `https://github.com/${owner}/${repoName}` });
+        setShowMoreMenu(false);
     };
 
     return (
@@ -105,66 +130,44 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                     >
                         {isRefreshing ? <RefreshCw size={18} className="animate-spin" /> :
                             syncState === 'fetch' ? <RefreshCw size={18} /> :
-                                syncState === 'pull' ? <ArrowDown size={18} color="#58a6ff" /> :
-                                    syncState === 'push' ? <ArrowUp size={18} color="#2ea043" /> :
-                                        <ShieldCheck size={18} color="#238636" />
+                                <ShieldCheck size={18} color="#238636" />
                         }
                         <span style={{ fontSize: '10px', marginTop: '2px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>
-                            {isRefreshing ? 'Syncing...' : syncState === 'synced' ? 'Synced' : `${syncState.charAt(0).toUpperCase() + syncState.slice(1)} origin`}
+                            {isRefreshing ? syncStatus : syncState === 'synced' ? 'Synced' : 'Sync origin'}
                         </span>
                     </button>
                 </div>
 
-                {/* Bottom Row: Branch */}
-                <div
-                    onClick={() => setShowBranchMenu(!showBranchMenu)}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', cursor: 'pointer'
-                    }}
-                >
-                    <GitBranch size={16} color="rgba(255,255,255,0.5)" />
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', fontWeight: 600, textTransform: 'uppercase' }}>Current Branch</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ fontSize: '14px', fontWeight: 500 }}>{currentBranch}</span>
-                            <ChevronDown size={14} color="rgba(255,255,255,0.5)" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Quick Actions Bar (Right below header) */}
-            <AnimatePresence>
-                {localPath && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
+                {/* Bottom Row: Branch & More */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div
+                        onClick={() => setShowBranchMenu(!showBranchMenu)}
                         style={{
-                            background: 'var(--surface-color)',
-                            borderBottom: '1px solid var(--border-color)',
-                            display: 'flex',
-                            padding: '8px 16px',
-                            justifyContent: 'flex-end',
-                            gap: '16px'
+                            display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', cursor: 'pointer', flex: 1
                         }}
                     >
-                        <div
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-muted)' }}
-                            onClick={onOpenInExplorer}
-                        >
-                            <FolderOpen size={14} />
-                            <span style={{ fontSize: '12px', fontWeight: 500 }}>Explorer</span>
+                        <GitBranch size={16} color="rgba(255,255,255,0.5)" />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', fontWeight: 600, textTransform: 'uppercase' }}>Current Branch</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ fontSize: '14px', fontWeight: 500 }}>{currentBranch}</span>
+                                <ChevronDown size={14} color="rgba(255,255,255,0.5)" />
+                            </div>
                         </div>
-                        <div
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-muted)' }}
-                            onClick={viewOnGitHub}
-                        >
-                            <ExternalLink size={14} />
-                            <span style={{ fontSize: '12px', fontWeight: 500 }}>GitHub</span>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    </div>
+
+                    <button
+                        onClick={() => setShowMoreMenu(!showMoreMenu)}
+                        style={{
+                            background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white',
+                            padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                        }}
+                    >
+                        <MoreHorizontal size={18} />
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>More</span>
+                    </button>
+                </div>
+            </div>
 
             {/* Branch Popover */}
             <AnimatePresence>
@@ -225,6 +228,55 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                                 >
                                     <Plus size={16} />
                                     <span style={{ fontWeight: 600, fontSize: '14px' }}>New branch</span>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* More Menu Popover */}
+            <AnimatePresence>
+                {showMoreMenu && (
+                    <>
+                        <div
+                            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 110 }}
+                            onClick={() => setShowMoreMenu(false)}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                            animate={{ opacity: 1, x: 0, scale: 1 }}
+                            exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                            style={{
+                                position: 'absolute', top: '100px', right: '16px', width: '220px',
+                                background: 'var(--surface-color)', border: '1px solid var(--border-color)',
+                                borderRadius: '8px', zIndex: 120, boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                                overflow: 'hidden'
+                            }}
+                        >
+                            <div style={{ padding: '8px 0' }}>
+                                <div
+                                    onClick={() => { onPickPath(); setShowMoreMenu(false); }}
+                                    style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                                >
+                                    <Download size={16} color={localPath ? "#2ea043" : "var(--text-muted)"} />
+                                    <span style={{ fontSize: '14px' }}>{localPath ? 'Change Path' : 'Git to Local'}</span>
+                                </div>
+
+                                <div
+                                    onClick={() => { onOpenInExplorer(); setShowMoreMenu(false); }}
+                                    style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', opacity: localPath ? 1 : 0.5 }}
+                                >
+                                    <FolderOpen size={16} color="var(--text-muted)" />
+                                    <span style={{ fontSize: '14px' }}>Show in Explorer</span>
+                                </div>
+
+                                <div
+                                    onClick={viewOnGitHub}
+                                    style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderTop: '1px solid var(--border-color)' }}
+                                >
+                                    <ExternalLink size={16} color="var(--text-muted)" />
+                                    <span style={{ fontSize: '14px' }}>View on GitHub</span>
                                 </div>
                             </div>
                         </motion.div>

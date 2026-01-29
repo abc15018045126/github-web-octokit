@@ -5,6 +5,7 @@ import { Browser } from '@capacitor/browser';
 interface GitHubContextType {
     octokit: Octokit | null;
     user: any | null;
+    token: string | null;
     isAuthenticated: boolean;
     login: (token: string) => Promise<void>;
     logout: () => void;
@@ -16,26 +17,27 @@ const GitHubContext = createContext<GitHubContextType | undefined>(undefined);
 
 export const GitHubProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [octokit, setOctokit] = useState<Octokit | null>(null);
+    const [token, setToken] = useState<string | null>(localStorage.getItem('github_token'));
     const [user, setUser] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const savedToken = localStorage.getItem('github_token');
-        if (savedToken) {
-            login(savedToken).finally(() => setIsLoading(false));
+        if (token) {
+            login(token).finally(() => setIsLoading(false));
         } else {
             setIsLoading(false);
         }
     }, []);
 
-    const login = async (token: string) => {
+    const login = async (newToken: string) => {
         setIsLoading(true);
         try {
-            const client = new Octokit({ auth: token });
+            const client = new Octokit({ auth: newToken });
             const { data: userData } = await client.rest.users.getAuthenticated();
             setOctokit(client);
+            setToken(newToken);
             setUser(userData);
-            localStorage.setItem('github_token', token);
+            localStorage.setItem('github_token', newToken);
         } catch (error) {
             console.error('Login failed:', error);
             localStorage.removeItem('github_token');
@@ -52,12 +54,13 @@ export const GitHubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const logout = () => {
         setOctokit(null);
+        setToken(null);
         setUser(null);
         localStorage.removeItem('github_token');
     };
 
     return (
-        <GitHubContext.Provider value={{ octokit, user, isAuthenticated: !!octokit, login, logout, isLoading, openWebLogin }}>
+        <GitHubContext.Provider value={{ octokit, user, token, isAuthenticated: !!octokit, login, logout, isLoading, openWebLogin }}>
             {children}
         </GitHubContext.Provider>
     );
