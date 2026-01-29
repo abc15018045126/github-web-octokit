@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, GitCommit, FileText, CheckCircle2, RotateCw, AlertCircle, Trash2, PlusCircle, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GitManager } from '../lib/GitManager';
-import type { FileStatus } from '../lib/GitManager';
+import { GitApi } from '../api/git';
+import type { FileStatus } from '../api/git';
 import { useGitHub } from '../lib/GitHubProvider';
 
 interface ChangesViewProps {
@@ -14,7 +14,7 @@ interface ChangesViewProps {
 }
 
 export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPath, owner, repoName, onRefresh }) => {
-    const { octokit, isAuthenticated } = useGitHub();
+    const { token, isAuthenticated } = useGitHub();
     const [summary, setSummary] = useState('');
     const [description, setDescription] = useState('');
     const [changedFiles, setChangedFiles] = useState<FileStatus[]>([]);
@@ -22,6 +22,8 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
     const [isPushing, setIsPushing] = useState(false);
     const [pushStatus, setPushStatus] = useState('');
     const [error, setError] = useState<string | null>(null);
+
+    const remoteUrl = `https://github.com/${owner}/${repoName}.git`;
 
     useEffect(() => {
         if (localPath && isAuthenticated) {
@@ -34,7 +36,7 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
         setIsLoading(true);
         setError(null);
         try {
-            const changes = await GitManager.getChangeList(localPath, currentBranch);
+            const changes = await GitApi.getChangeList(localPath, currentBranch);
             setChangedFiles(changes);
         } catch (e: any) {
             console.error('Failed to load changes:', e);
@@ -45,7 +47,7 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
     };
 
     const handleCommitPush = async () => {
-        if (!octokit || !localPath || !summary) return;
+        if (!token || !localPath || !summary) return;
 
         setIsPushing(true);
         setPushStatus('Creating commit...');
@@ -53,13 +55,12 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
 
         try {
             const commitMessage = description ? `${summary}\n\n${description}` : summary;
-            await GitManager.push(
-                octokit,
-                owner,
-                repoName,
-                currentBranch,
+            await GitApi.push(
+                token,
+                remoteUrl,
                 localPath,
-                commitMessage
+                commitMessage,
+                currentBranch
             );
 
             setPushStatus('Sync complete!');

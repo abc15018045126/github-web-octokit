@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { Octokit } from 'octokit';
 import { Browser } from '@capacitor/browser';
+import { GitApi } from '../api/git';
 
 interface GitHubContextType {
     octokit: Octokit | null;
@@ -32,8 +33,8 @@ export const GitHubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const login = async (newToken: string) => {
         setIsLoading(true);
         try {
+            const userData = await GitApi.login(newToken);
             const client = new Octokit({ auth: newToken });
-            const { data: userData } = await client.rest.users.getAuthenticated();
             setOctokit(client);
             setToken(newToken);
             setUser(userData);

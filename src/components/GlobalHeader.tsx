@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, RefreshCw, GitBranch, ShieldCheck, Search, MoreHorizontal, ArrowDown, ExternalLink, FolderOpen, Download } from 'lucide-react';
-import { GitManager } from '../lib/GitManager';
-import type { SyncStatus } from '../lib/GitManager';
+import { GitApi } from '../api/git';
+import type { SyncStatus } from '../api/git';
 import { useGitHub } from '../lib/GitHubProvider';
 import { Browser } from '@capacitor/browser';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,6 +40,8 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     const [branches, setBranches] = useState<string[]>(['main']);
     const [branchSearch, setBranchSearch] = useState('');
 
+    const remoteUrl = `https://github.com/${owner}/${repoName}.git`;
+
     useEffect(() => {
         if (octokit) {
             fetchBranches();
@@ -62,11 +64,11 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     };
 
     const handleFetch = async () => {
-        if (!octokit || !localPath) return;
+        if (!token || !localPath) return; // GitApi needs token
         setIsRefreshing(true);
         setSyncStatusText('Fetching...');
         try {
-            const s = await GitManager.fetchStatus(octokit, owner, repoName, currentBranch, localPath);
+            const s = await GitApi.fetch(token, remoteUrl, localPath, currentBranch);
             if (s) setStatus(s);
         } catch (e) {
             console.error('Fetch failed', e);
@@ -77,7 +79,7 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     };
 
     const handleSyncAction = async () => {
-        if (!localPath || !octokit || !token) {
+        if (!localPath || !token) {
             if (!localPath) onPickPath();
             return;
         }
@@ -85,21 +87,19 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
         setIsRefreshing(true);
         try {
             if (status?.isAhead && status?.isDirty) {
-                // SYNC: Pull then Push
-                setSyncStatusText('Syncing (Pull)...');
-                await GitManager.pull(token, owner, repoName, currentBranch, localPath, setSyncStatusText);
-                setSyncStatusText('Syncing (Push)...');
-                await GitManager.push(octokit, owner, repoName, currentBranch, localPath, 'Two-way sync from Mobile');
+                // SYNC: Integrated in GitApi
+                setSyncStatusText('Syncing...');
+                await GitApi.sync(token, remoteUrl, localPath, 'Two-way sync from Mobile', currentBranch, setSyncStatusText);
             } else if (status?.isAhead) {
-                // PULL: Just download
+                // PULL
                 setSyncStatusText('Pulling...');
-                await GitManager.pull(token, owner, repoName, currentBranch, localPath, setSyncStatusText);
+                await GitApi.pull(token, remoteUrl, localPath, currentBranch, setSyncStatusText);
             } else if (!status) {
                 // INITIAL FETCH/CLONE
                 setSyncStatusText('Fetching...');
-                await GitManager.pull(token, owner, repoName, currentBranch, localPath, setSyncStatusText);
+                await GitApi.pull(token, remoteUrl, localPath, currentBranch, setSyncStatusText);
             } else {
-                // UP TO DATE: Just refresh status
+                // UP TO DATE
                 await handleFetch();
             }
             onRefresh();
@@ -222,6 +222,25 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                                 <div onClick={viewOnGitHub} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid var(--border-color)', cursor: 'pointer' }}>
                                     <ExternalLink size={16} color="var(--text-muted)" />
                                     <span style={{ fontSize: '14px' }}>View on GitHub</span>
+                                </div>
+                                <div onClick={async () => {
+                                    if (window.confirm("Force Remote will DELETE all local changes. Continue?")) {
+                                        setIsRefreshing(true);
+                                        try {
+                                            await GitApi.forceSync(token!, remoteUrl, localPath!, currentBranch, 'remote', setSyncStatusText);
+                                            onRefresh();
+                                            await handleFetch();
+                                        } catch (e: any) {
+                                            alert(`Force Sync Failed: ${e.message}`);
+                                        } finally {
+                                            setIsRefreshing(false);
+                                            setSyncStatusText('');
+                                        }
+                                    }
+                                    setShowMoreMenu(false);
+                                }} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid var(--border-color)', cursor: 'pointer', color: '#ff7b72' }}>
+                                    <RefreshCw size={16} />
+                                    <span style={{ fontSize: '14px' }}>Force Remote (Destructive)</span>
                                 </div>
                             </div>
                         </motion.div>
