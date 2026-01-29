@@ -6,6 +6,7 @@ import { resolveRepoInfo, type ProgressCallback } from './index';
 /**
  * 6. FORCE SYNC API
  * Destructive overwrite with smart path resolution.
+ * mode: 'remote' (Local = Remote) or 'local' (Remote = Local)
  */
 export async function forceSync(
     token: string,
@@ -32,10 +33,24 @@ export async function forceSync(
             }
         } catch (e) { }
 
-        onProgress?.('Fresh Pulling...');
+        onProgress?.('Fresh Pulling from Remote...');
         await pull(token, remoteInput, path, branchOverride, onProgress);
     } else {
-        onProgress?.('Force Pushing Local Truth...');
+        onProgress?.('Force Pushing Local Truth to Remote...');
         await push(token, remoteInput, path, "Force Push from App", branchOverride);
     }
+}
+
+/**
+ * Convienence: Force Remote (Local becomes a mirror of Remote)
+ */
+export async function forceRemote(token: string, remoteInput: string, localPath?: string | null, branch?: string, onProgress?: ProgressCallback) {
+    return forceSync(token, remoteInput, localPath, branch, 'remote', onProgress);
+}
+
+/**
+ * Convienence: Force Local (Remote becomes a mirror of Local)
+ */
+export async function forceLocal(token: string, remoteInput: string, localPath?: string | null, branch?: string, onProgress?: ProgressCallback) {
+    return forceSync(token, remoteInput, localPath, branch, 'local', onProgress);
 }

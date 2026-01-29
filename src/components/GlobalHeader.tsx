@@ -5,6 +5,7 @@ import type { SyncStatus } from '../api/git';
 import { useGitHub } from '../lib/GitHubProvider';
 import { Browser } from '@capacitor/browser';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useI18n } from '../lib/I18nContext';
 
 interface RepoSummaryProps {
     owner: string;
@@ -31,6 +32,7 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     onPickPath,
     refreshKey
 }) => {
+    const { t } = useI18n();
     const { octokit, token } = useGitHub();
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [status, setStatus] = useState<SyncStatus | null>(null);
@@ -66,7 +68,7 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     const handleFetch = async () => {
         if (!token || !localPath) return; // GitApi needs token
         setIsRefreshing(true);
-        setSyncStatusText('Fetching...');
+        setSyncStatusText(t('header_fetching'));
         try {
             const s = await GitApi.fetch(token, remoteUrl, localPath, currentBranch);
             if (s) setStatus(s);
@@ -88,15 +90,15 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
         try {
             if (status?.isAhead && status?.isDirty) {
                 // SYNC: Integrated in GitApi
-                setSyncStatusText('Syncing...');
+                setSyncStatusText(t('header_sync') + '...');
                 await GitApi.sync(token, remoteUrl, localPath, 'Two-way sync from Mobile', currentBranch, setSyncStatusText);
             } else if (status?.isAhead) {
                 // PULL
-                setSyncStatusText('Pulling...');
+                setSyncStatusText(t('header_pull') + '...');
                 await GitApi.pull(token, remoteUrl, localPath, currentBranch, setSyncStatusText);
             } else if (!status) {
                 // INITIAL FETCH/CLONE
-                setSyncStatusText('Fetching...');
+                setSyncStatusText(t('header_fetching'));
                 await GitApi.pull(token, remoteUrl, localPath, currentBranch, setSyncStatusText);
             } else {
                 // UP TO DATE
@@ -127,11 +129,11 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     };
 
     const getSyncLabel = () => {
-        if (isRefreshing) return syncStatusText || 'Loading...';
-        if (!localPath) return 'Fetch'; // No path = need to fetch
-        if (!status) return 'Fetch';
-        if (status.isAhead && status.isDirty) return 'Sync';
-        if (status.isAhead) return 'Pull';
+        if (isRefreshing) return syncStatusText || t('loading');
+        if (!localPath) return t('header_fetch'); // No path = need to fetch
+        if (!status) return t('header_fetch');
+        if (status.isAhead && status.isDirty) return t('header_sync');
+        if (status.isAhead) return t('header_pull');
         return 'Origin'; // Or 'Synced'
     };
 
@@ -147,7 +149,7 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                             <ShieldCheck size={16} color="#58a6ff" />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>CURRENT REPOSITORY</span>
+                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{t('header_current_repo')}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <span style={{ fontSize: '15px', fontWeight: 600 }}>{repoName}</span>
                                 <ChevronDown size={14} color="rgba(255,255,255,0.5)" />
@@ -170,7 +172,7 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                     <div onClick={() => setShowBranchMenu(!showBranchMenu)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', cursor: 'pointer', flex: 1 }}>
                         <GitBranch size={16} color="rgba(255,255,255,0.5)" />
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>BRANCH</span>
+                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{t('header_branch')}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <span style={{ fontSize: '14px', fontWeight: 500 }}>{currentBranch}</span>
                                 <ChevronDown size={14} color="rgba(255,255,255,0.5)" />
@@ -179,7 +181,7 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                     </div>
                     <button onClick={() => setShowMoreMenu(!showMoreMenu)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <MoreHorizontal size={18} />
-                        <span style={{ fontSize: '13px', fontWeight: 600 }}>More</span>
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('header_more')}</span>
                     </button>
                 </div>
             </div>
@@ -192,7 +194,7 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                             <div style={{ padding: '12px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-color)', borderRadius: '6px', padding: '0 10px', border: '1px solid var(--border-color)' }}>
                                     <Search size={14} color="var(--text-muted)" />
-                                    <input type="text" placeholder="Filter branches" value={branchSearch} onChange={(e) => setBranchSearch(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'white', padding: '8px', outline: 'none', width: '100%' }} />
+                                    <input type="text" placeholder={t('header_filter_branches')} value={branchSearch} onChange={(e) => setBranchSearch(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'white', padding: '8px', outline: 'none', width: '100%' }} />
                                 </div>
                             </div>
                             <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
@@ -213,18 +215,18 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                             <div style={{ padding: '8px 0' }}>
                                 <div onClick={() => { onPickPath(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
                                     <Download size={16} color={localPath ? "#2ea043" : "var(--text-muted)"} />
-                                    <span style={{ fontSize: '14px' }}>{localPath ? 'Change Path' : 'Set Local Path'}</span>
+                                    <span style={{ fontSize: '14px' }}>{localPath ? t('header_change_path') : t('header_set_path')}</span>
                                 </div>
                                 <div onClick={() => { onOpenInExplorer(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
                                     <FolderOpen size={16} color="var(--text-muted)" />
-                                    <span style={{ fontSize: '14px' }}>Show in Explorer</span>
+                                    <span style={{ fontSize: '14px' }}>{t('header_show_explorer')}</span>
                                 </div>
                                 <div onClick={viewOnGitHub} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid var(--border-color)', cursor: 'pointer' }}>
                                     <ExternalLink size={16} color="var(--text-muted)" />
-                                    <span style={{ fontSize: '14px' }}>View on GitHub</span>
+                                    <span style={{ fontSize: '14px' }}>{t('header_view_github')}</span>
                                 </div>
                                 <div onClick={async () => {
-                                    if (window.confirm("Force Remote will DELETE all local changes. Continue?")) {
+                                    if (window.confirm(t('header_force_remote_confirm'))) {
                                         setIsRefreshing(true);
                                         try {
                                             await GitApi.forceSync(token!, remoteUrl, localPath!, currentBranch, 'remote', setSyncStatusText);
@@ -240,7 +242,7 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                                     setShowMoreMenu(false);
                                 }} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid var(--border-color)', cursor: 'pointer', color: '#ff7b72' }}>
                                     <RefreshCw size={16} />
-                                    <span style={{ fontSize: '14px' }}>Force Remote (Destructive)</span>
+                                    <span style={{ fontSize: '14px' }}>{t('header_force_remote')}</span>
                                 </div>
                             </div>
                         </motion.div>

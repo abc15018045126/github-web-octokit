@@ -1,12 +1,21 @@
 import React from 'react';
 import { useGitHub } from '../lib/GitHubProvider';
 import { LogOut, User, Github, ExternalLink, HardDrive } from 'lucide-react';
-import { RepoManager } from './RepoManager';
+import { RepoManager } from '../api/git/ui/RepoManager';
 import { AnimatePresence } from 'framer-motion';
+import { useI18n } from '../lib/I18nContext';
 
 export const SettingsView: React.FC = () => {
+    const { t } = useI18n();
     const { user, logout } = useGitHub();
     const [showRepoManager, setShowRepoManager] = React.useState(false);
+
+    React.useEffect(() => {
+        if (localStorage.getItem('git_repomanager_auto_open') === 'true') {
+            setShowRepoManager(true);
+            localStorage.removeItem('git_repomanager_auto_open');
+        }
+    }, []);
 
     if (!user) return null;
 
@@ -29,7 +38,7 @@ export const SettingsView: React.FC = () => {
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <User size={20} color="var(--text-muted)" />
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '14px', fontWeight: 500 }}>Public Repos</div>
+                        <div style={{ fontSize: '14px', fontWeight: 500 }}>{t('settings_public_repos')}</div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{user.public_repos}</div>
                     </div>
                 </div>
@@ -39,16 +48,16 @@ export const SettingsView: React.FC = () => {
                 >
                     <HardDrive size={20} color="var(--accent-color)" />
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '14px', fontWeight: 600 }}>Manage Git Repositories</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Configured local paths and sync history</div>
+                        <div style={{ fontSize: '14px', fontWeight: 600 }}>{t('settings_manage_repos')}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('settings_manage_repos_desc')}</div>
                     </div>
                 </div>
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <Github size={20} color="var(--text-muted)" />
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '14px', fontWeight: 500 }}>GitHub Profile</div>
+                        <div style={{ fontSize: '14px', fontWeight: 500 }}>{t('settings_github_profile')}</div>
                         <a href={user.html_url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'var(--accent-color)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            View on Web <ExternalLink size={10} />
+                            {t('settings_view_web')} <ExternalLink size={10} />
                         </a>
                     </div>
                 </div>
@@ -69,7 +78,7 @@ export const SettingsView: React.FC = () => {
                     }}
                 >
                     <LogOut size={20} />
-                    Sign Out
+                    {t('settings_sign_out')}
                 </button>
             </div>
 

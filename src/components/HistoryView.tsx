@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGitHub } from '../lib/GitHubProvider';
 import { User } from 'lucide-react';
+import { useI18n } from '../lib/I18nContext';
 
 interface Commit {
     sha: string;
@@ -18,6 +19,7 @@ interface Commit {
 }
 
 export const HistoryView: React.FC<{ owner: string; repo: string }> = ({ owner, repo }) => {
+    const { t } = useI18n();
     const { octokit } = useGitHub();
     const [commits, setCommits] = useState<Commit[]>([]);
     const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ export const HistoryView: React.FC<{ owner: string; repo: string }> = ({ owner, 
         fetchCommits();
     }, [octokit, owner, repo]);
 
-    if (loading) return <div style={{ padding: '20px', textAlign: 'center' }}>Loading history...</div>;
+    if (loading) return <div style={{ padding: '20px', textAlign: 'center' }}>{t('history_loading')}</div>;
 
     return (
         <div style={{ background: 'var(--bg-color)', minHeight: '100%' }}>
@@ -70,7 +72,7 @@ export const HistoryView: React.FC<{ owner: string; repo: string }> = ({ owner, 
                         </div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                             <span style={{ fontWeight: 500 }}>{c.author?.login || c.commit.author.name}</span>
-                            <span>committed on {new Date(c.commit.author.date).toLocaleDateString()}</span>
+                            <span>{t('history_committed_on')} {new Date(c.commit.author.date).toLocaleDateString()}</span>
                         </div>
                     </div>
                     <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--accent-color)' }}>

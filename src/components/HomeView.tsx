@@ -3,12 +3,15 @@ import { Folder, File, Download, ChevronRight, HardDrive, ArrowLeft, Home as Hom
 import { motion, AnimatePresence } from 'framer-motion';
 import { Filesystem, type FileInfo } from '@capacitor/filesystem';
 
+import { useI18n } from '../lib/I18nContext';
+
 interface HomeViewProps {
     localPath: string | null;
     onPathSelect: () => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) => {
+    const { t } = useI18n();
     const [currentSubPath, setCurrentSubPath] = useState<string>('');
     const [files, setFiles] = useState<FileInfo[]>([]);
     const [history, setHistory] = useState<string[]>([]);
@@ -83,13 +86,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                 <div style={{ width: '80px', height: '80px', borderRadius: '20px', background: 'var(--surface-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', border: '1px solid var(--border-color)' }}>
                     <HardDrive size={40} color="var(--accent-color)" />
                 </div>
-                <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>Local Explorer</h2>
+                <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>{t('explorer_title')}</h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '32px', maxWidth: '280px' }}>
-                    Select a local folder to browse and manage repository files.
+                    {t('explorer_subtitle')}
                 </p>
                 <button className="btn btn-primary" style={{ width: '100%', maxWidth: '240px', height: '48px' }} onClick={onPathSelect}>
                     <Download size={18} style={{ marginRight: '8px' }} />
-                    Select Local Folder
+                    {t('explorer_select_btn')}
                 </button>
             </div>
         );
@@ -117,9 +120,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
 
             {error ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', textAlign: 'center' }}>
-                    <div style={{ color: 'var(--danger-color)', marginBottom: '16px' }}>⚠️ Access Error</div>
+                    <div style={{ color: 'var(--danger-color)', marginBottom: '16px' }}>{t('explorer_access_error')}</div>
                     <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px' }}>{error}</p>
-                    <button className="btn" onClick={onPathSelect}>Change Root Folder</button>
+                    <button className="btn" onClick={onPathSelect}>{t('explorer_change_root')}</button>
                 </div>
             ) : (
                 <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -134,7 +137,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                             {files.length === 0 ? (
                                 <div style={{ padding: '80px 40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                     <Folder size={48} style={{ opacity: 0.1, marginBottom: '16px', margin: '0 auto' }} />
-                                    <p style={{ fontSize: '14px' }}>This folder is empty</p>
+                                    <p style={{ fontSize: '14px' }}>{t('explorer_empty')}</p>
                                 </div>
                             ) : (
                                 files.map((file) => (

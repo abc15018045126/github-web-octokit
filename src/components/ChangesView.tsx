@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GitApi } from '../api/git';
 import type { FileStatus } from '../api/git';
 import { useGitHub } from '../lib/GitHubProvider';
+import { useI18n } from '../lib/I18nContext';
 
 interface ChangesViewProps {
     currentBranch: string;
@@ -14,6 +15,7 @@ interface ChangesViewProps {
 }
 
 export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPath, owner, repoName, onRefresh }) => {
+    const { t } = useI18n();
     const { token, isAuthenticated } = useGitHub();
     const [summary, setSummary] = useState('');
     const [description, setDescription] = useState('');
@@ -40,7 +42,7 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
             setChangedFiles(changes);
         } catch (e: any) {
             console.error('Failed to load changes:', e);
-            setError(e.message || 'Failed to detect local changes.');
+            setError(e.message || t('changes_none'));
         } finally {
             setIsLoading(false);
         }
@@ -50,7 +52,7 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
         if (!token || !localPath || !summary) return;
 
         setIsPushing(true);
-        setPushStatus('Creating commit...');
+        setPushStatus(t('changes_syncing'));
         setError(null);
 
         try {
@@ -63,7 +65,7 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
                 currentBranch
             );
 
-            setPushStatus('Sync complete!');
+            setPushStatus(t('changes_success'));
             setSummary('');
             setDescription('');
             setChangedFiles([]);
@@ -98,7 +100,7 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
         return (
             <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <AlertCircle size={48} style={{ margin: '0 auto 16px', opacity: 0.5 }} />
-                <p>No local path selected. Please set a local path in Home view.</p>
+                <p>{t('changes_no_path')}</p>
             </div>
         );
     }
@@ -107,11 +109,11 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-color)' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-                    {isLoading ? 'SCANNING...' : `${changedFiles.length} CHANGED FILES`}
+                    {isLoading ? t('changes_loading').toUpperCase() : `${changedFiles.length} ${t('changes_count_suffix')}`}
                 </span>
                 <button onClick={loadChanges} disabled={isLoading || isPushing} style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <RotateCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                    <span style={{ fontSize: '12px', fontWeight: 600 }}>Refresh</span>
+                    <span style={{ fontSize: '12px', fontWeight: 600 }}>{t('changes_refresh')}</span>
                 </button>
             </div>
 
@@ -134,8 +136,8 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
                 {!isLoading && changedFiles.length === 0 && !error && (
                     <div style={{ padding: '80px 20px', textAlign: 'center' }}>
                         <CheckCircle2 size={48} color="#2ea043" style={{ margin: '0 auto 16px', opacity: 0.5 }} />
-                        <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Up to date</h3>
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>No local changes detected.</p>
+                        <h3 style={{ fontSize: '16px', fontWeight: 600 }}>{t('changes_up_to_date')}</h3>
+                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>{t('changes_none')}</p>
                     </div>
                 )}
             </div>
@@ -148,15 +150,15 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
                                 <MessageSquare size={16} color="var(--text-muted)" />
                             </div>
                             <div style={{ flex: 1 }}>
-                                <input type="text" placeholder="Commit summary" value={summary} onChange={(e) => setSummary(e.target.value)} disabled={isPushing} style={{ width: '100%', background: 'transparent', border: 'none', color: 'white', fontSize: '15px', fontWeight: 600, outline: 'none', marginBottom: '8px' }} />
-                                <textarea placeholder="Optional description" value={description} onChange={(e) => setDescription(e.target.value)} disabled={isPushing} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '13px', outline: 'none', resize: 'none', height: '40px' }} />
+                                <input type="text" placeholder={t('changes_commit_summary')} value={summary} onChange={(e) => setSummary(e.target.value)} disabled={isPushing} style={{ width: '100%', background: 'transparent', border: 'none', color: 'white', fontSize: '15px', fontWeight: 600, outline: 'none', marginBottom: '8px' }} />
+                                <textarea placeholder={t('changes_commit_desc')} value={description} onChange={(e) => setDescription(e.target.value)} disabled={isPushing} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '13px', outline: 'none', resize: 'none', height: '40px' }} />
                             </div>
                         </div>
                         <button className="btn btn-primary" style={{ width: '100%', height: '48px', borderRadius: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px' }} onClick={handleCommitPush} disabled={!summary || isPushing || !isAuthenticated}>
                             {isPushing ? (
                                 <><RotateCw size={18} className="animate-spin" /><span>{pushStatus}</span></>
                             ) : (
-                                <><GitCommit size={18} /><span>Push to {currentBranch}</span></>
+                                <><GitCommit size={18} /><span>{t('changes_push_to')} {currentBranch}</span></>
                             )}
                         </button>
                     </motion.div>

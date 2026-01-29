@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGitHub } from '../lib/GitHubProvider';
 import { Search, Book } from 'lucide-react';
+import { useI18n } from '../lib/I18nContext';
 
 interface Repo {
     id: number;
@@ -11,6 +12,7 @@ interface Repo {
 }
 
 export const RepoSelector: React.FC<{ onSelect: (repo: Repo) => void }> = ({ onSelect }) => {
+    const { t } = useI18n();
     const { octokit } = useGitHub();
     const [repos, setRepos] = useState<Repo[]>([]);
     const [loading, setLoading] = useState(true);
@@ -38,17 +40,17 @@ export const RepoSelector: React.FC<{ onSelect: (repo: Repo) => void }> = ({ onS
         repo.full_name.toLowerCase().includes(filter.toLowerCase())
     );
 
-    if (loading) return <div style={{ padding: '20px', textAlign: 'center' }}>Loading repositories...</div>;
+    if (loading) return <div style={{ padding: '20px', textAlign: 'center' }}>{t('selector_loading')}</div>;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)' }}>
-                <h2 style={{ marginBottom: '12px', fontSize: '18px' }}>Select Repository</h2>
+                <h2 style={{ marginBottom: '12px', fontSize: '18px' }}>{t('selector_title')}</h2>
                 <div style={{ position: 'relative' }}>
                     <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                     <input
                         type="text"
-                        placeholder="Filter repositories"
+                        placeholder={t('selector_filter')}
                         value={filter}
                         onChange={(e) => setFilter(e.target.value)}
                         style={{

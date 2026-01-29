@@ -182,20 +182,20 @@ export async function getChangeList(localPath: string, branch: string): Promise<
 }
 
 // --- Re-exporting Main Functions ---
-export { login } from './login';
+export { login } from './ui/git_login';
 export { fetch } from './fetch';
 export { push } from './push';
 export { pull } from './pull';
 export { sync } from './sync';
-export { forceSync } from './forceSync';
+export { forceSync, forceRemote, forceLocal } from './forceSync';
 export { GitScheduler } from './scheduler';
 
-import { login } from './login';
+import { login } from './ui/git_login';
 import { fetch } from './fetch';
 import { push } from './push';
 import { pull } from './pull';
 import { sync } from './sync';
-import { forceSync } from './forceSync';
+import { forceSync, forceRemote, forceLocal } from './forceSync';
 import { GitScheduler } from './scheduler';
 
 /**
@@ -212,6 +212,8 @@ export const GitApi = {
     pull,
     sync,
     forceSync,
+    forceRemote,
+    forceLocal,
     smartSync,
     getChangeList,
     resolveRepoInfo,
