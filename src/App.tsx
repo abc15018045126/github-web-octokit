@@ -170,6 +170,7 @@ function AppContent() {
         onBranchChange={setCurrentBranch}
         onOpenInExplorer={handleOpenExplorer}
         onPickPath={handlePickPath}
+        refreshKey={refreshKey}
       />
 
       <main className="mobile-content" style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
@@ -186,6 +187,7 @@ function AppContent() {
             localPath={localPath}
             owner={selectedRepo.owner.login}
             repoName={selectedRepo.name}
+            onRefresh={handleRefresh}
           />
         )}
         {activeTab === 'history' && <HistoryView owner={selectedRepo.owner.login} repo={selectedRepo.name} />}

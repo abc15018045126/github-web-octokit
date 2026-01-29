@@ -5,92 +5,143 @@ import { Buffer } from 'buffer';
 import { sha256 } from 'js-sha256';
 import type { Octokit } from 'octokit';
 
-// A simple interface for file status
 export interface FileStatus {
     path: string;
     status: 'modified' | 'added' | 'deleted' | 'unmodified';
 }
 
-const MANIFEST_FILE = '.git_manifest.json';
+export interface SyncStatus {
+    remoteSha: string;
+    localSha: string;
+    isAhead: boolean;  // Remote has new commits
+    isDirty: boolean;  // Local has unsaved changes
+}
+
+const GIT_DIR = '.git';
 
 export const GitManager = {
-    /**
-     * Check if the directory is "synced" (we check for a hidden marker or just files)
-     */
-    async checkIsRepo(path: string) {
-        if (!path) return false;
-        try {
-            // We check for any files in the directory
-            const result = await Filesystem.readdir({ path });
-            return result.files.length > 0;
-        } catch (e) {
-            return false;
-        }
-    },
-
-    /**
-     * Helper to compute hash of a file content
-     */
-    computeHash(content: string): string {
+    async computeHash(content: string): Promise<string> {
         return sha256(content);
     },
 
     /**
-     * Save the manifest state (snapshot of current files)
+     * Standard Git Layout Save:
+     * .git/HEAD
+     * .git/refs/heads/[branch]
+     * .git/index (our manifest)
      */
-    async saveManifest(path: string, files: { [key: string]: string }) {
+    async saveState(path: string, branch: string, data: { files: { [key: string]: string }, commitSha: string }) {
+        const base = path.endsWith('/') ? path : `${path}/`;
+        const gitPath = `${base}${GIT_DIR}`;
+
+        // SAFETY: If .git exists but is a FILE, we must delete it to create a .git FOLDER
+        try {
+            const stat = await Filesystem.stat({ path: gitPath });
+            if (stat.type === 'file') {
+                await Filesystem.deleteFile({ path: gitPath });
+            }
+        } catch (e) {
+            // Directory doesn't exist yet, which is fine
+        }
+
+        // 1. Ensure .git directory and write .git/HEAD
         await Filesystem.writeFile({
-            path: path.endsWith('/') ? `${path}${MANIFEST_FILE}` : `${path}/${MANIFEST_FILE}`,
-            data: JSON.stringify(files),
-            encoding: Encoding.UTF8
+            path: `${base}${GIT_DIR}/HEAD`,
+            data: `ref: refs/heads/${branch}`,
+            encoding: Encoding.UTF8,
+            recursive: true
+        });
+
+        // 2. Write .git/refs/heads/[branch]
+        await Filesystem.writeFile({
+            path: `${base}${GIT_DIR}/refs/heads/${branch}`,
+            data: data.commitSha,
+            encoding: Encoding.UTF8,
+            recursive: true
+        });
+
+        // 3. Write .git/index (as our JSON manifest)
+        await Filesystem.writeFile({
+            path: `${base}${GIT_DIR}/index`,
+            data: JSON.stringify(data.files),
+            encoding: Encoding.UTF8,
+            recursive: true
         });
     },
 
-    /**
-     * Load the manifest state
-     */
-    async loadManifest(path: string): Promise<{ [key: string]: string }> {
+    async loadState(path: string, branch: string): Promise<{ files: { [key: string]: string }, commitSha: string }> {
+        const base = path.endsWith('/') ? path : `${path}/`;
         try {
-            const result = await Filesystem.readFile({
-                path: path.endsWith('/') ? `${path}${MANIFEST_FILE}` : `${path}/${MANIFEST_FILE}`,
+            // Load SHA from its standard path
+            const shaRes = await Filesystem.readFile({
+                path: `${base}${GIT_DIR}/refs/heads/${branch}`,
                 encoding: Encoding.UTF8
             });
-            return JSON.parse(result.data as string);
+            const commitSha = (shaRes.data as string).trim();
+
+            // Load file hashes from index
+            const indexRes = await Filesystem.readFile({
+                path: `${base}${GIT_DIR}/index`,
+                encoding: Encoding.UTF8
+            });
+            const files = JSON.parse(indexRes.data as string);
+
+            return { files, commitSha };
         } catch (e) {
-            return {};
+            return { files: {}, commitSha: '' };
         }
     },
 
     /**
-     * Get changed files by comparing current files with manifest
-     * Note: This is an expensive operation as it recursively reads all files.
-     * Optimizations can be done, but for now we keep it simple.
+     * FETCH: Check remote state using Octokit.js
      */
-    async getStatus(localPath: string): Promise<FileStatus[]> {
-        const manifest = await this.loadManifest(localPath);
+    async fetchStatus(octokit: Octokit, owner: string, repo: string, branch: string, localPath: string): Promise<SyncStatus> {
+        // 1. Get Remote SHA
+        const { data: refData } = await octokit.rest.git.getRef({
+            owner,
+            repo,
+            ref: `heads/${branch}`,
+        });
+        const remoteSha = refData.object.sha;
+
+        // 2. Get Local Manifest (New Layout)
+        const manifest = await this.loadState(localPath, branch);
+        const localSha = manifest.commitSha;
+
+        // 3. Check for Local Changes (isDirty)
+        const localChanges = await this.getChangeList(localPath, branch);
+
+        return {
+            remoteSha,
+            localSha,
+            isAhead: remoteSha !== localSha,
+            isDirty: localChanges.length > 0
+        };
+    },
+
+    async getChangeList(localPath: string, branch: string): Promise<FileStatus[]> {
+        const manifest = await this.loadState(localPath, branch);
+        const manifestFiles = manifest?.files || {};
         const changes: FileStatus[] = [];
         const currentFiles: { [key: string]: string } = {};
 
-        // Helper to recurse
         const scanDir = async (dir: string) => {
             const res = await Filesystem.readdir({ path: dir });
             for (const file of res.files) {
-                if (file.name.startsWith('.')) continue; // Ignore dotfiles/dirs
+                if (file.name === GIT_DIR) continue; // Filter .git folder
                 const fullPath = dir.endsWith('/') ? `${dir}${file.name}` : `${dir}/${file.name}`;
 
                 if (file.type === 'directory') {
                     await scanDir(fullPath);
                 } else {
-                    // Read file content
                     const contentRes = await Filesystem.readFile({ path: fullPath, encoding: Encoding.UTF8 });
-                    const content = contentRes.data as string;
                     const relativePath = fullPath.replace(localPath, '').replace(/^\//, '');
-                    const hash = this.computeHash(content);
+                    const hash = await this.computeHash(contentRes.data as string);
                     currentFiles[relativePath] = hash;
 
-                    if (!manifest[relativePath]) {
+                    if (!manifestFiles[relativePath]) {
                         changes.push({ path: relativePath, status: 'added' });
-                    } else if (manifest[relativePath] !== hash) {
+                    } else if (manifestFiles[relativePath] !== hash) {
                         changes.push({ path: relativePath, status: 'modified' });
                     }
                 }
@@ -99,204 +150,139 @@ export const GitManager = {
 
         try {
             await scanDir(localPath);
-        } catch (e) {
-            console.error('Scan failed', e);
-        }
+        } catch (e) { }
 
-        // Check for deleted
-        for (const path of Object.keys(manifest)) {
+        for (const path of Object.keys(manifestFiles)) {
             if (!currentFiles[path]) {
                 changes.push({ path, status: 'deleted' });
             }
         }
-
         return changes;
     },
 
     /**
-     * Using Octokit API to push changes
+     * PUSH: Push local changes using Octokit Git Data API
      */
-    async pushChanges(
-        octokit: Octokit,
-        owner: string,
-        repo: string,
-        branch: string,
-        changes: FileStatus[],
-        message: string,
-        localPath: string
-    ) {
-        // 1. Get latest commit SHA
-        const { data: refData } = await octokit.rest.git.getRef({
-            owner,
-            repo,
-            ref: `heads/${branch}`,
-        });
-        const latestCommitSha = refData.object.sha;
+    async push(octokit: Octokit, owner: string, repo: string, branch: string, localPath: string, message: string) {
+        const changes = await this.getChangeList(localPath, branch);
+        if (changes.length === 0) return;
 
-        // 2. Get the tree SHA of the latest commit
-        const { data: commitData } = await octokit.rest.git.getCommit({
-            owner,
-            repo,
-            commit_sha: latestCommitSha,
-        });
+        const { data: refData } = await octokit.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+        const parentSha = refData.object.sha;
+
+        const { data: commitData } = await octokit.rest.git.getCommit({ owner, repo, commit_sha: parentSha });
         const baseTreeSha = commitData.tree.sha;
 
-        // 3. Create Blob for each file
         const treeItems = [];
         for (const change of changes) {
             if (change.status === 'deleted') {
-                treeItems.push({
-                    path: change.path,
-                    mode: '100644' as const,
-                    type: 'blob' as const,
-                    sha: null // Deletes the file
-                });
+                treeItems.push({ path: change.path, mode: '100644' as const, type: 'blob' as const, sha: null });
                 continue;
             }
-
-            // Read local file
             const fullPath = localPath.endsWith('/') ? `${localPath}${change.path}` : `${localPath}/${change.path}`;
             const fileRes = await Filesystem.readFile({ path: fullPath, encoding: Encoding.UTF8 });
-            const content = fileRes.data as string;
-
-            // We can upload content directly in createTree for text files, or create blobs.
-            // createTree has a limit, better to create blobs if content is large.
-            // For simplicity, we directly put content if it's text.
-            treeItems.push({
-                path: change.path,
-                mode: '100644' as const,
-                type: 'blob' as const,
-                content: content
-            });
+            treeItems.push({ path: change.path, mode: '100644' as const, type: 'blob' as const, content: fileRes.data as string });
         }
 
-        // 4. Create new tree
-        const { data: newTree } = await octokit.rest.git.createTree({
-            owner,
-            repo,
-            base_tree: baseTreeSha,
-            tree: treeItems as any,
-        });
+        const { data: newTree } = await octokit.rest.git.createTree({ owner, repo, base_tree: baseTreeSha, tree: treeItems as any });
+        const { data: newCommit } = await octokit.rest.git.createCommit({ owner, repo, message, tree: newTree.sha, parents: [parentSha] });
+        await octokit.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: newCommit.sha });
 
-        // 5. Create new commit
-        const { data: newCommit } = await octokit.rest.git.createCommit({
-            owner,
-            repo,
-            message,
-            tree: newTree.sha,
-            parents: [latestCommitSha],
-        });
+        // After push, update local manifest to new SHA (New Layout)
+        const manifestData = await this.loadState(localPath, branch);
+        const manifestFiles = manifestData.files;
 
-        // 6. Update Ref
-        await octokit.rest.git.updateRef({
-            owner,
-            repo,
-            ref: `heads/${branch}`,
-            sha: newCommit.sha,
-        });
-
-        // 7. Update local manifest
-        const manifest = await this.loadManifest(localPath);
         for (const change of changes) {
             if (change.status === 'deleted') {
-                delete manifest[change.path];
+                delete manifestFiles[change.path];
             } else {
                 const fullPath = localPath.endsWith('/') ? `${localPath}${change.path}` : `${localPath}/${change.path}`;
                 const fileRes = await Filesystem.readFile({ path: fullPath, encoding: Encoding.UTF8 });
-                manifest[change.path] = this.computeHash(fileRes.data as string);
+                manifestFiles[change.path] = await this.computeHash(fileRes.data as string);
             }
         }
-        await this.saveManifest(localPath, manifest);
+
+        await this.saveState(localPath, branch, {
+            files: manifestFiles,
+            commitSha: newCommit.sha
+        });
     },
 
     /**
-     * Sync download
+     * PULL: Sync download using Official ZIP API
      */
-    async sync(token: string, owner: string, repo: string, branch: string, localPath: string, onProgress?: (p: string) => void) {
-        if (!localPath) throw new Error('Local path is not set');
+    async pull(token: string, owner: string, repo: string, branch: string, localPath: string, onProgress?: (p: string) => void) {
+        onProgress?.('Fetching remote SHA...');
+        // We need the commit SHA to store in manifest
+        // This is a direct Octokit pattern: get branch info first
+        const url = `https://api.github.com/repos/${owner}/${repo}/zipball/${branch}`;
 
-        try {
-            onProgress?.('Fetching ZIP from GitHub...');
+        // 1. Load the state AFTER the last sync (The "Reference" list)
+        const oldState = await this.loadState(localPath, branch);
+        const oldManifestFiles = oldState.files; // These are files that WERE synced last time
 
-            const url = `https://api.github.com/repos/${owner}/${repo}/zipball/${branch}`;
+        onProgress?.('Downloading ZIP...');
+        const authHeaders = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'User-Agent': 'GitHub-Web-Octokit-App' };
+        const branchRes = await CapacitorHttp.request({ method: 'GET', url: `https://api.github.com/repos/${owner}/${repo}/branches/${branch}`, headers: authHeaders });
+        const currentSha = branchRes.data.commit.sha;
 
-            const response = await CapacitorHttp.request({
-                method: 'GET',
-                url: url,
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/vnd.github+json',
-                    'User-Agent': 'GitHub-Web-Octokit-App'
-                },
-                responseType: 'arraybuffer'
+        const response = await CapacitorHttp.request({ method: 'GET', url: url, headers: authHeaders, responseType: 'arraybuffer' });
+
+        let zipData: ArrayBuffer | Uint8Array;
+        if (typeof response.data === 'string') zipData = Buffer.from(response.data, 'base64');
+        else if (response.data instanceof ArrayBuffer) zipData = response.data;
+        else zipData = new Uint8Array(response.data);
+
+        onProgress?.('Extracting...');
+        const zip = await JSZip.loadAsync(zipData);
+        const folders = Object.keys(zip.files).filter(path => zip.files[path].dir);
+        const filesInZip = Object.keys(zip.files).filter(path => !zip.files[path].dir);
+        const rootFolder = folders[0];
+
+        const remoteFilePaths = new Set<string>();
+        const newManifestFiles: { [key: string]: string } = {};
+        let completed = 0;
+
+        for (const filePath of filesInZip) {
+            const relativePath = filePath.replace(rootFolder, '');
+            if (!relativePath) continue;
+
+            remoteFilePaths.add(relativePath); // We saw this on remote
+
+            const fileData = await zip.files[filePath].async('uint8array');
+            const contentStr = Buffer.from(fileData).toString('utf8');
+            newManifestFiles[relativePath] = await this.computeHash(contentStr);
+
+            // Write the file (Update existing or Create new from remote)
+            await Filesystem.writeFile({
+                path: localPath.endsWith('/') ? `${localPath}${relativePath}` : `${localPath}/${relativePath}`,
+                data: Buffer.from(fileData).toString('base64'),
+                recursive: true
             });
 
-            if (response.status >= 400) {
-                throw new Error(`GitHub API Error: ${response.status} ${response.data ? JSON.stringify(response.data) : ''}`);
-            }
+            completed++;
+            if (completed % 10 === 0) onProgress?.(`Progress: ${((completed / filesInZip.length) * 100).toFixed(0)}%`);
+        }
 
-            onProgress?.('Processing download...');
-
-            let zipData: ArrayBuffer | Uint8Array;
-            if (typeof response.data === 'string') {
-                zipData = Buffer.from(response.data, 'base64');
-            } else if (response.data instanceof ArrayBuffer) {
-                zipData = response.data;
-            } else {
-                zipData = new Uint8Array(response.data);
-            }
-
-            onProgress?.('Extracting files...');
-            const zip = await JSZip.loadAsync(zipData);
-
-            const folders = Object.keys(zip.files).filter(path => zip.files[path].dir);
-            const files = Object.keys(zip.files).filter(path => !zip.files[path].dir);
-
-            const rootFolder = folders[0];
-
-            let completed = 0;
-            const manifest: { [key: string]: string } = {};
-
-            for (const filePath of files) {
-                const relativePath = filePath.replace(rootFolder, '');
-                if (!relativePath) continue;
-
-                // Skip binary file hashing for manifest optimization in this demo? No, we need it.
-                // We read as text to hash for simple text comparison. Binary hashing is trickier with JS strings.
-                // For this demo, let's assume text mainly.
-                const fileData = await zip.files[filePath].async('uint8array');
-                const contentStr = Buffer.from(fileData).toString('utf8');
-                manifest[relativePath] = this.computeHash(contentStr);
-
-                const base64Content = Buffer.from(fileData).toString('base64');
-
-                const fullLocalPath = localPath.endsWith('/') ? `${localPath}${relativePath}` : `${localPath}/${relativePath}`;
-
-                await Filesystem.writeFile({
-                    path: fullLocalPath,
-                    data: base64Content,
-                    recursive: true
-                });
-
-                completed++;
-                if (completed % 10 === 0 || completed === files.length) {
-                    onProgress?.(`Syncing: ${((completed / files.length) * 100).toFixed(0)}%`);
+        // --- SMART PRUNING ---
+        // We ONLY delete a local file if:
+        // 1. It was present in our last sync (oldManifestFiles)
+        // 2. AND It is NOT present in the new remote ZIP (remoteFilePaths)
+        onProgress?.('Pruning remote-deleted files...');
+        for (const syncedFilePath of Object.keys(oldManifestFiles)) {
+            if (!remoteFilePaths.has(syncedFilePath)) {
+                try {
+                    const fullPath = localPath.endsWith('/') ? `${localPath}${syncedFilePath}` : `${localPath}/${syncedFilePath}`;
+                    await Filesystem.deleteFile({ path: fullPath });
+                    console.log(`Pruned remote-deleted file: ${syncedFilePath}`);
+                } catch (e) {
+                    // File might have been deleted locally already, which is fine
                 }
             }
-
-            // Save manifest
-            await this.saveManifest(localPath, manifest);
-
-            // Create dummy .git
-            await Filesystem.writeFile({
-                path: localPath.endsWith('/') ? `${localPath}.git` : `${localPath}/.git`,
-                data: Buffer.from('GitHub Octokit Sync Marker').toString('base64')
-            });
-
-            onProgress?.('Synced!');
-        } catch (error: any) {
-            console.error('Octokit Sync failed:', error);
-            throw new Error(`Sync failed: ${error.message}`);
         }
+
+        // Save the new unified state
+        await this.saveState(localPath, branch, { files: newManifestFiles, commitSha: currentSha });
+        onProgress?.('Done!');
     }
 };

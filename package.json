@@ -1,7 +1,7 @@
 {
   "name": "github-web-octokit",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.3",
   "type": "module",
   "main": "./dist/lib/github-web-octokit.umd.js",
   "module": "./dist/lib/github-web-octokit.es.js",
