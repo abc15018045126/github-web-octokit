@@ -14,7 +14,7 @@
     "i18n",
     "sync"
   ],
-  "version": "0.0.4",
+  "version": "0.0.5",
   "type": "module",
   "main": "./dist/lib/github-web-octokit.umd.js",
   "module": "./dist/lib/github-web-octokit.es.js",
@@ -45,6 +45,7 @@
     "@capawesome/capacitor-file-picker": "^8.0.1",
     "@octokit/auth-oauth-device": "^8.0.3",
     "buffer": "^6.0.3",
+    "capacitor-sora-editor": "^1.8.1",
     "framer-motion": "^12.29.2",
     "js-sha256": "^0.11.1",
     "jszip": "^3.10.1",

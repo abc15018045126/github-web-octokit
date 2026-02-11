@@ -97,4 +97,33 @@ export class GitScheduler {
             console.log(`[Scheduler] Task "${id}" stopped.`);
         }
     }
+
+    /**
+     * Checks if a cron expression should have triggered between two timestamps.
+     * Efficiency: Iterates backwards from 'now' to 'lastSyncTs' minute-by-minute.
+     * Limit: Max 1 month (44640 minutes) to prevent infinite loops or huge delays.
+     */
+    static shouldHaveRunSince(cron: string, lastSyncTs: number): boolean {
+        const now = Date.now();
+        if (lastSyncTs >= now) return false;
+
+        // Iterate backwards minute-by-minute
+        const oneMinute = 60000;
+        const maxCheck = 31 * 24 * 60 * oneMinute; // 31 days max
+
+        let checkTs = now - (now % oneMinute); // Align to the minute
+        const limitTs = Math.max(lastSyncTs, now - maxCheck);
+
+        while (checkTs > limitTs) {
+            if (this.matches(cron, new Date(checkTs))) {
+                // Found a scheduled time point that is AFTER our last sync
+                if (checkTs > lastSyncTs) {
+                    return true;
+                }
+            }
+            checkTs -= oneMinute;
+        }
+
+        return false;
+    }
 }

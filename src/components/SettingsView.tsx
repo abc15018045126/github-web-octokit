@@ -1,14 +1,18 @@
 import React from 'react';
 import { useGitHub } from '../lib/GitHubProvider';
-import { LogOut, User, Github, ExternalLink, HardDrive } from 'lucide-react';
+import { LogOut, User, Github, ExternalLink, HardDrive, Globe } from 'lucide-react';
 import { RepoManager } from '../api/git/ui/RepoManager';
 import { AnimatePresence } from 'framer-motion';
 import { useI18n } from '../lib/I18nContext';
+import { Browser } from '@capacitor/browser';
 
 export const SettingsView: React.FC = () => {
     const { t } = useI18n();
     const { user, logout } = useGitHub();
     const [showRepoManager, setShowRepoManager] = React.useState(false);
+    const [openMode, setOpenMode] = React.useState<'app' | 'web'>(
+        (localStorage.getItem('git_open_mode') as 'app' | 'web') || 'app'
+    );
 
     React.useEffect(() => {
         if (localStorage.getItem('git_repomanager_auto_open') === 'true') {
@@ -16,6 +20,22 @@ export const SettingsView: React.FC = () => {
             localStorage.removeItem('git_repomanager_auto_open');
         }
     }, []);
+
+    const toggleOpenMode = () => {
+        const next = openMode === 'app' ? 'web' : 'app';
+        setOpenMode(next);
+        localStorage.setItem('git_open_mode', next);
+    };
+
+    const handleOpenProfile = () => {
+        if (!user) return;
+        const url = user.html_url;
+        if (openMode === 'web') {
+            window.open(`${url}?mobile=0`, '_system');
+        } else {
+            Browser.open({ url });
+        }
+    };
 
     if (!user) return null;
 
@@ -56,11 +76,31 @@ export const SettingsView: React.FC = () => {
                     <Github size={20} color="var(--text-muted)" />
                     <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '14px', fontWeight: 500 }}>{t('settings_github_profile')}</div>
-                        <a href={user.html_url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'var(--accent-color)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            {t('settings_view_web')} <ExternalLink size={10} />
-                        </a>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <span
+                                onClick={handleOpenProfile}
+                                style={{ fontSize: '12px', color: 'var(--accent-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                                {t('settings_view_web')} <ExternalLink size={10} />
+                            </span>
+                        </div>
                     </div>
                 </div>
+
+                {/* Open Mode Preference */}
+                <div
+                    onClick={toggleOpenMode}
+                    style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                >
+                    <Globe size={20} color="var(--text-muted)" />
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '14px', fontWeight: 500 }}>{t('settings_ext_links')}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--accent-color)', fontWeight: 600 }}>
+                            {openMode === 'app' ? t('settings_ext_links_app') : t('settings_ext_links_web')}
+                        </div>
+                    </div>
+                </div>
+
                 <button
                     onClick={logout}
                     style={{
@@ -83,7 +123,7 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', marginTop: '32px' }}>
-                GitHub Web Octokit v0.0.3<br />
+                GitHub Web Octokit v0.0.4<br />
                 Built with Octokit.js
             </p>
         </div>

@@ -43,6 +43,9 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     });
 
     const [showLoginModal, setShowLoginModal] = useState(false);
+    const [showGlobalSettings, setShowGlobalSettings] = useState(false);
+    const [gapCorrectionEnabled, setGapCorrectionEnabled] = useState(localStorage.getItem('git_gap_correction_enabled') !== 'false');
+    const [globalCron, setGlobalCron] = useState(localStorage.getItem('git_global_cron') || '*/60 * * * *');
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const [syncingId, setSyncingId] = useState<string | null>(null);
     const [syncStatus, setSyncStatus] = useState<string>('');
@@ -51,6 +54,41 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         loadRepos();
         applyTheme(theme);
     }, []);
+
+    // Missed Sync Recovery (Gap-Correction)
+    useEffect(() => {
+        if (repos.length > 0 && isAuthenticated && gapCorrectionEnabled) {
+            checkMissedSyncs();
+        }
+    }, [repos.length, isAuthenticated, gapCorrectionEnabled]);
+
+    const checkMissedSyncs = async () => {
+        const token = localStorage.getItem('github_token');
+        if (!token) return;
+
+        for (const repo of repos) {
+            const lastSyncTs = parseInt(localStorage.getItem(`git_last_sync_timestamp_${repo.id}`) || '0');
+            if (lastSyncTs === 0) continue; // Skip if never synced before
+
+            const ONE_DAY = 24 * 60 * 60 * 1000;
+            const now = Date.now();
+
+            let shouldSync = false;
+
+            if (repo.cron) {
+                // Use the actual cron schedule if available
+                shouldSync = GitApi.scheduler.shouldHaveRunSince(repo.cron, lastSyncTs);
+            } else {
+                // FALLBACK: If no cron is set, default to a 24-hour safety update
+                shouldSync = (now - lastSyncTs >= ONE_DAY);
+            }
+
+            if (shouldSync) {
+                console.log(`[Sync Recovery] Repo ${repo.id} triggered catch-up sync.`);
+                await handleSync(repo);
+            }
+        }
+    };
 
     const applyTheme = (currentTheme: string) => {
         const root = document.documentElement;
@@ -133,6 +171,7 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             await GitApi.smartSync(token, `${repo.owner}/${repo.repo}`, repo.localPath, "Quick Sync from Manager");
             const now = new Date().toLocaleString();
             localStorage.setItem(`git_last_sync_${repo.id}`, now);
+            localStorage.setItem(`git_last_sync_timestamp_${repo.id}`, Date.now().toString());
             loadRepos();
             setSyncStatus(t('changes_success'));
         } catch (e: any) {
@@ -150,6 +189,7 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const token = localStorage.getItem('github_token');
         if (!token) return alert('Token missing');
 
+        const nowTs = Date.now().toString();
         for (const repo of repos) {
             setSyncingId(repo.id);
             setSyncStatus(`${t('changes_syncing')} ${repo.repo}...`);
@@ -157,6 +197,7 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 await GitApi.smartSync(token, `${repo.owner}/${repo.repo}`, repo.localPath, "All-Sync from Manager");
                 const now = new Date().toLocaleString();
                 localStorage.setItem(`git_last_sync_${repo.id}`, now);
+                localStorage.setItem(`git_last_sync_timestamp_${repo.id}`, nowTs);
             } catch (e) {
                 console.error(`Failed to sync ${repo.id}`, e);
             }
@@ -198,6 +239,7 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             await GitApi.forceSync(token, `${repo.owner}/${repo.repo}`, repo.localPath, undefined, mode, (p: string) => setSyncStatus(p));
             const now = new Date().toLocaleString();
             localStorage.setItem(`git_last_sync_${repo.id}`, now);
+            localStorage.setItem(`git_last_sync_timestamp_${repo.id}`, Date.now().toString());
             loadRepos();
         } catch (e: any) {
             alert(e.message);
@@ -361,9 +403,8 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                                 <div
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        const now = localStorage.getItem('git_global_cron') || '*/60 * * * *';
-                                        const next = prompt("Set Global Sync Interval (Cron):", now);
-                                        if (next) { localStorage.setItem('git_global_cron', next); alert("Updated."); }
+                                        setShowHeaderMenu(false);
+                                        setShowGlobalSettings(true);
                                     }}
                                     style={{ padding: '4px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)' }}
                                 >
@@ -599,6 +640,92 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                             style={{ width: '90%', maxWidth: '400px', background: 'var(--bg-color)', borderRadius: '24px', overflow: 'hidden', border: '1px solid var(--border-color)' }}
                         >
                             <Login onSuccess={() => setShowLoginModal(false)} />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Global Settings Modal */}
+            <AnimatePresence>
+                {showGlobalSettings && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        onClick={() => setShowGlobalSettings(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ width: '90%', maxWidth: '400px', background: 'var(--bg-color)', borderRadius: '24px', overflow: 'hidden', border: '1px solid var(--border-color)', padding: '24px' }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <h3 style={{ fontSize: '18px', fontWeight: 700 }}>{t('repoman_global_settings')}</h3>
+                                <button onClick={() => setShowGlobalSettings(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)' }}><X size={20} /></button>
+                            </div>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>{t('repo_manager_global_cron')}</label>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <input
+                                        className="repo-input"
+                                        style={{ marginBottom: 0 }}
+                                        value={globalCron}
+                                        onChange={(e) => setGlobalCron(e.target.value)}
+                                    />
+                                    <button
+                                        className="btn-primary"
+                                        style={{ padding: '0 16px', borderRadius: '10px' }}
+                                        onClick={() => {
+                                            localStorage.setItem('git_global_cron', globalCron);
+                                            alert(t('changes_success'));
+                                        }}
+                                    >
+                                        {t('common_save')}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style={{ marginBottom: '20px', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <div>
+                                        <div style={{ fontSize: '14px', fontWeight: 600 }}>{t('repoman_gap_correction')}</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{t('repoman_gap_correction_desc')}</div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const next = !gapCorrectionEnabled;
+                                            setGapCorrectionEnabled(next);
+                                            localStorage.setItem('git_gap_correction_enabled', next.toString());
+                                        }}
+                                        style={{
+                                            width: '44px', height: '24px', borderRadius: '12px',
+                                            background: gapCorrectionEnabled ? 'var(--accent-color)' : 'rgba(255,255,255,0.1)',
+                                            border: 'none', position: 'relative', transition: 'all 0.2s',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: '18px', height: '18px', borderRadius: '50%', background: 'white',
+                                            position: 'absolute', top: '3px', left: gapCorrectionEnabled ? '23px' : '3px',
+                                            transition: 'all 0.2s'
+                                        }} />
+                                    </button>
+                                </div>
+                                <button
+                                    className="btn-primary"
+                                    style={{ width: '100%', marginTop: '12px', height: '36px', fontSize: '13px', borderRadius: '8px' }}
+                                    onClick={() => {
+                                        setShowGlobalSettings(false);
+                                        checkMissedSyncs();
+                                    }}
+                                >
+                                    {t('repoman_run_check_now')}
+                                </button>
+                            </div>
                         </motion.div>
                     </motion.div>
                 )}

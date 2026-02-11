@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, RefreshCw, GitBranch, ShieldCheck, Search, MoreHorizontal, ArrowDown, ExternalLink, FolderOpen, Download } from 'lucide-react';
+import { ChevronDown, RefreshCw, GitBranch, ShieldCheck, Search, MoreHorizontal, ArrowDown, ExternalLink, FolderOpen, Download, Globe } from 'lucide-react';
 import { GitApi } from '../api/git';
 import type { SyncStatus } from '../api/git';
 import { useGitHub } from '../lib/GitHubProvider';
@@ -119,6 +119,13 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
         setShowMoreMenu(false);
     };
 
+    const viewOnGitHubWeb = () => {
+        // Use window.open with _system for Capacitor to try forcing browser, 
+        // or a slightly modified URL that might bypass app intents
+        window.open(`https://github.com/${owner}/${repoName}?mobile=0`, '_system');
+        setShowMoreMenu(false);
+    };
+
     const getSyncIcon = () => {
         if (isRefreshing) return <RefreshCw size={18} className="animate-spin" />;
         if (!localPath) return <Download size={18} />;
@@ -224,6 +231,10 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
                                 <div onClick={viewOnGitHub} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid var(--border-color)', cursor: 'pointer' }}>
                                     <ExternalLink size={16} color="var(--text-muted)" />
                                     <span style={{ fontSize: '14px' }}>{t('header_view_github')}</span>
+                                </div>
+                                <div onClick={viewOnGitHubWeb} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid var(--border-color)', cursor: 'pointer' }}>
+                                    <Globe size={16} color="var(--text-muted)" />
+                                    <span style={{ fontSize: '14px' }}>{t('header_view_github_web')}</span>
                                 </div>
                                 <div onClick={async () => {
                                     if (window.confirm(t('header_force_remote_confirm'))) {

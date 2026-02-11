@@ -13,13 +13,14 @@ import { ChangesView } from './components/ChangesView'
 import { Login } from './api/git/ui/Login'
 import './index.css'
 
-interface ExternalStoragePermissionPlugin {
+interface OpenFolderPlugin {
   requestAllFilesAccess(): Promise<void>;
-  checkAllFilesAccess(): Promise<{ granted: boolean }>;
+  open(): Promise<void>;
   resolveUriToPath(options: { uri: string }): Promise<{ path: string }>;
+  listFiles(options: { path: string }): Promise<{ files: any[] }>;
 }
 
-const ExternalStoragePermission = registerPlugin<ExternalStoragePermissionPlugin>('ExternalStoragePermission');
+const OpenFolder = registerPlugin<OpenFolderPlugin>('OpenFolder');
 
 interface Repo {
   name: string;
@@ -59,6 +60,7 @@ function AppContent() {
     }
   }, [selectedRepo]);
 
+  // 应用启动时立即请求文件管理权限
   useEffect(() => {
     const requestPermissions = async () => {
       try {
@@ -67,19 +69,15 @@ function AppContent() {
           await Filesystem.requestPermissions();
         }
 
-        const { granted } = await ExternalStoragePermission.checkAllFilesAccess();
-        if (!granted) {
-          await ExternalStoragePermission.requestAllFilesAccess();
-        }
+        // 直接请求所有文件访问权限
+        await OpenFolder.requestAllFilesAccess();
       } catch (err) {
         console.error('Permission request failed:', err);
       }
     };
 
-    if (isAuthenticated) {
-      requestPermissions();
-    }
-  }, [isAuthenticated]);
+    requestPermissions();
+  }, []);
 
   const handlePickPath = async () => {
     if (!selectedRepo) return;
@@ -87,12 +85,17 @@ function AppContent() {
       const result = await FilePicker.pickDirectory();
       if (result.path) {
         let finalPath = result.path;
+
+        // 如果是 content:// URI，尝试解析为真实路径
         if (finalPath.startsWith('content://')) {
           try {
-            const resolved = await ExternalStoragePermission.resolveUriToPath({ uri: finalPath });
-            finalPath = resolved.path;
+            const resolved = await OpenFolder.resolveUriToPath({ uri: finalPath });
+            if (resolved && resolved.path && !resolved.path.startsWith('content://')) {
+              finalPath = resolved.path;
+              console.log('Resolved content URI to:', finalPath);
+            }
           } catch (e) {
-            console.warn('Path resolution failed, using original', e);
+            console.warn('Path resolution failed on native side, using original', e);
           }
         }
 
@@ -122,10 +125,34 @@ function AppContent() {
 
   if (!isAuthenticated) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color)' }}>
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color)', flexDirection: 'column', gap: '20px' }}>
         <div style={{ maxWidth: '400px', width: '90%' }}>
           <Login />
         </div>
+        <button
+          onClick={async () => {
+            try {
+              console.log('Requesting file permissions...');
+              await OpenFolder.requestAllFilesAccess();
+              console.log('Permission request completed');
+            } catch (err) {
+              console.error('Permission request error:', err);
+              alert('Error: ' + JSON.stringify(err));
+            }
+          }}
+          style={{
+            padding: '12px 24px',
+            background: '#58a6ff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 600
+          }}
+        >
+          🔓 Request File Permissions (Test)
+        </button>
       </div>
     );
   }

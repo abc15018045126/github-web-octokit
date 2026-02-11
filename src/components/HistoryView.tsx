@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useGitHub } from '../lib/GitHubProvider';
 import { User } from 'lucide-react';
 import { useI18n } from '../lib/I18nContext';
+import { Browser } from '@capacitor/browser';
 
 interface Commit {
     sha: string;
@@ -23,6 +24,16 @@ export const HistoryView: React.FC<{ owner: string; repo: string }> = ({ owner, 
     const { octokit } = useGitHub();
     const [commits, setCommits] = useState<Commit[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const openCommit = (sha: string) => {
+        const url = `https://github.com/${owner}/${repo}/commit/${sha}`;
+        const mode = localStorage.getItem('git_open_mode') || 'app';
+        if (mode === 'web') {
+            window.open(`${url}?mobile=0`, '_system');
+        } else {
+            Browser.open({ url });
+        }
+    };
 
     useEffect(() => {
         const fetchCommits = async () => {
@@ -51,12 +62,14 @@ export const HistoryView: React.FC<{ owner: string; repo: string }> = ({ owner, 
             {commits.map((c) => (
                 <div
                     key={c.sha}
+                    onClick={() => openCommit(c.sha)}
                     style={{
                         padding: '12px 16px',
                         borderBottom: '1px solid var(--border-color)',
                         background: 'var(--surface-color)',
                         display: 'flex',
-                        gap: '12px'
+                        gap: '12px',
+                        cursor: 'pointer'
                     }}
                 >
                     {c.author ? (
