@@ -14,7 +14,7 @@
     "i18n",
     "sync"
   ],
-  "version": "0.0.5",
+  "version": "0.0.6",
   "type": "module",
   "main": "./dist/lib/github-web-octokit.umd.js",
   "module": "./dist/lib/github-web-octokit.es.js",

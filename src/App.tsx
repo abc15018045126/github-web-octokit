@@ -231,13 +231,17 @@ function AppContent() {
   )
 }
 
+import { ThemeProvider } from './lib/ThemeContext'
+
 function App() {
   return (
-    <I18nProvider>
-      <GitHubProvider>
-        <AppContent />
-      </GitHubProvider>
-    </I18nProvider>
+    <ThemeProvider>
+      <I18nProvider>
+        <GitHubProvider>
+          <AppContent />
+        </GitHubProvider>
+      </I18nProvider>
+    </ThemeProvider>
   )
 }
 

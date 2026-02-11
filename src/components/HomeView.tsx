@@ -5,7 +5,7 @@ import {
     X, Edit3, Trash2, Info, FilePlus, FolderPlus, Copy, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Filesystem, type FileInfo } from '@capacitor/filesystem';
+import { type FileInfo } from '@capacitor/filesystem';
 import { registerPlugin } from '@capacitor/core';
 
 import { SoraEditor } from 'capacitor-sora-editor';
@@ -15,6 +15,12 @@ import { useI18n } from '../lib/I18nContext';
 
 interface OpenFolderPlugin {
     listFiles(options: { path: string }): Promise<{ files: any[] }>;
+    writeFile(options: { path: string, data: string }): Promise<void>;
+    mkdir(options: { path: string }): Promise<void>;
+    rename(options: { from: string, to: string }): Promise<void>;
+    delete(options: { path: string, recursive?: boolean }): Promise<void>;
+    copy(options: { from: string, to: string }): Promise<void>;
+    stat(options: { path: string }): Promise<any>;
 }
 const OpenFolder = registerPlugin<OpenFolderPlugin>('OpenFolder');
 
@@ -148,7 +154,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
         const newPath = getFullPath() + (getFullPath().endsWith('/') ? newName : '/' + newName);
 
         try {
-            await Filesystem.rename({ from: oldPath, to: newPath });
+            await OpenFolder.rename({ from: oldPath, to: newPath });
             setShowRenameModal(null);
             setNewName('');
             loadFiles(getFullPath());
@@ -162,11 +168,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
         const path = getFullPath() + (getFullPath().endsWith('/') ? name : '/' + name);
         try {
             const isDir = files.find(f => f.name === name)?.type === 'directory';
-            if (isDir) {
-                await Filesystem.rmdir({ path, recursive: true });
-            } else {
-                await Filesystem.deleteFile({ path });
-            }
+            await OpenFolder.delete({ path, recursive: isDir });
             setActiveFileMenu(null);
             loadFiles(getFullPath());
         } catch (e: any) {
@@ -177,7 +179,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
     const handleShowProperties = async (name: string, type: string) => {
         const path = getFullPath() + (getFullPath().endsWith('/') ? name : '/' + name);
         try {
-            const stat = await Filesystem.stat({ path });
+            const stat = await OpenFolder.stat({ path });
             setShowPropsModal({ name, type, info: stat });
             setActiveFileMenu(null);
         } catch (e: any) {
@@ -192,9 +194,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
             // Capacitor Filesystem doesn't have a direct "copy" for directories, only files
             // For simplicity, we implement file copy. Move is 'rename'.
             if (clipboard.operation === 'copy') {
-                await Filesystem.copy({ from: clipboard.path, to: destPath });
+                await OpenFolder.copy({ from: clipboard.path, to: destPath });
             } else {
-                await Filesystem.rename({ from: clipboard.path, to: destPath });
+                await OpenFolder.rename({ from: clipboard.path, to: destPath });
                 setClipboard(null);
             }
             setShowDirMoreMenu(false);
@@ -204,14 +206,39 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
         }
     };
 
+    const handleQuickCreateFile = async () => {
+        let baseName = "Untitled";
+        let ext = ".txt";
+        let finalName = baseName + ext;
+        let counter = 1;
+
+        // Ensure unique name
+        while (files.some(f => f.name === finalName)) {
+            finalName = `${baseName} ${counter}${ext}`;
+            counter++;
+        }
+
+        const path = getFullPath() + (getFullPath().endsWith('/') ? finalName : '/' + finalName);
+        console.log('Quick creating file:', path);
+
+        try {
+            await OpenFolder.writeFile({ path, data: '' });
+            await loadFiles(getFullPath());
+            await handleOpenFile(finalName);
+        } catch (e: any) {
+            console.error('Quick create failed', e);
+            alert('Failed to create file: ' + e.message);
+        }
+    };
+
     const handleCreateNew = async () => {
         if (!showNewModal || !newName) return;
         const path = getFullPath() + (getFullPath().endsWith('/') ? newName : '/' + newName);
         try {
             if (showNewModal === 'folder') {
-                await Filesystem.mkdir({ path, recursive: true });
+                await OpenFolder.mkdir({ path });
             } else {
-                await Filesystem.writeFile({ path, data: '', encoding: 'utf8' as any });
+                await OpenFolder.writeFile({ path, data: '' });
             }
             setShowNewModal(null);
             setNewName('');
@@ -275,7 +302,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
             {/* Action Buttons Floating */}
             <div style={{ position: 'absolute', right: '16px', bottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px', zIndex: 10 }}>
                 <button
-                    onClick={() => setShowNewModal('file')}
+                    onClick={handleQuickCreateFile}
                     style={{ width: '56px', height: '56px', borderRadius: '28px', background: 'var(--accent-color)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
                 >
                     <Plus size={24} />
@@ -305,10 +332,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                                 <Clipboard size={16} /> <span>{t('home_more_paste_here')}</span>
                             </button>
                             <div style={{ borderTop: '1px solid var(--border-color)' }} />
-                            <button className="menu-item" onClick={() => { setShowNewModal('file'); setShowDirMoreMenu(false); }}>
+                            <button className="menu-item" onClick={() => { setShowNewModal('file'); setNewName(''); setShowDirMoreMenu(false); }}>
                                 <FilePlus size={16} /> <span>{t('home_new_file')}</span>
                             </button>
-                            <button className="menu-item" onClick={() => { setShowNewModal('folder'); setShowDirMoreMenu(false); }}>
+                            <button className="menu-item" onClick={() => { setShowNewModal('folder'); setNewName(''); setShowDirMoreMenu(false); }}>
                                 <FolderPlus size={16} /> <span>{t('home_new_folder')}</span>
                             </button>
                         </motion.div>
@@ -340,7 +367,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                             <button className="menu-item" onClick={() => handleCopyFile(activeFileMenu.name, activeFileMenu.type)}>
                                 <Copy size={16} /> <span>{t('home_file_copy')}</span>
                             </button>
-                            <button className="menu-item" onClick={() => { setShowRenameModal({ oldName: activeFileMenu.name, type: activeFileMenu.type }); setActiveFileMenu(null); }}>
+                            <button className="menu-item" onClick={() => { setShowRenameModal({ oldName: activeFileMenu.name, type: activeFileMenu.type }); setNewName(activeFileMenu.name); setActiveFileMenu(null); }}>
                                 <Edit3 size={16} /> <span>{t('home_file_rename')}</span>
                             </button>
                             <button className="menu-item" onClick={() => handleDeleteFile(activeFileMenu.name)} style={{ color: 'var(--danger-color)' }}>
@@ -355,60 +382,62 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                 )}
             </AnimatePresence>
 
-            {error ? (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', textAlign: 'center' }}>
-                    <div style={{ color: 'var(--danger-color)', marginBottom: '16px' }}>{t('explorer_access_error')}</div>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px' }}>{error}</p>
-                    <button className="btn" onClick={onPathSelect}>{t('explorer_change_root')}</button>
-                </div>
-            ) : (
-                <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '80px' }}>
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={currentSubPath}
-                            initial={{ opacity: 0, x: 10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -10 }}
-                            transition={{ duration: 0.2 }}
-                        >
-                            {files.length === 0 ? (
-                                <div style={{ padding: '80px 40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                    <Folder size={48} style={{ opacity: 0.1, marginBottom: '16px', margin: '0 auto' }} />
-                                    <p style={{ fontSize: '14px' }}>{t('explorer_empty')}</p>
-                                </div>
-                            ) : (
-                                files.map((file) => (
-                                    <div
-                                        key={file.name}
-                                        onClick={() => file.type === 'directory' ? handleFolderClick(file.name) : handleOpenFile(file.name)}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            padding: '14px 16px',
-                                            borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                            gap: '12px',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        {file.type === 'directory' ? <Folder size={18} color="#58a6ff" /> : <File size={18} color="var(--text-muted)" />}
-                                        <div style={{ flex: 1, fontSize: '14px', fontWeight: 500, color: 'var(--text-color)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{file.name}</div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const rect = e.currentTarget.getBoundingClientRect();
-                                                setActiveFileMenu({ name: file.name, type: file.type, x: rect.right, y: rect.bottom });
-                                            }}
-                                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', padding: '4px' }}
-                                        >
-                                            <MoreVertical size={16} />
-                                        </button>
+            {
+                error ? (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', textAlign: 'center' }}>
+                        <div style={{ color: 'var(--danger-color)', marginBottom: '16px' }}>{t('explorer_access_error')}</div>
+                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px' }}>{error}</p>
+                        <button className="btn" onClick={onPathSelect}>{t('explorer_change_root')}</button>
+                    </div>
+                ) : (
+                    <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '80px' }}>
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={currentSubPath}
+                                initial={{ opacity: 0, x: 10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                transition={{ duration: 0.2 }}
+                            >
+                                {files.length === 0 ? (
+                                    <div style={{ padding: '80px 40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                        <Folder size={48} style={{ opacity: 0.1, marginBottom: '16px', margin: '0 auto' }} />
+                                        <p style={{ fontSize: '14px' }}>{t('explorer_empty')}</p>
                                     </div>
-                                ))
-                            )}
-                        </motion.div>
-                    </AnimatePresence>
-                </div>
-            )}
+                                ) : (
+                                    files.map((file) => (
+                                        <div
+                                            key={file.name}
+                                            onClick={() => file.type === 'directory' ? handleFolderClick(file.name) : handleOpenFile(file.name)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: '14px 16px',
+                                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                                gap: '12px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {file.type === 'directory' ? <Folder size={18} color="#58a6ff" /> : <File size={18} color="var(--text-muted)" />}
+                                            <div style={{ flex: 1, fontSize: '14px', fontWeight: 500, color: 'var(--text-color)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{file.name}</div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    setActiveFileMenu({ name: file.name, type: file.type, x: rect.right, y: rect.bottom });
+                                                }}
+                                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', padding: '4px' }}
+                                            >
+                                                <MoreVertical size={16} />
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
+                )
+            }
 
             {/* Modals */}
             <AnimatePresence>
@@ -419,18 +448,29 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                     >
                         <motion.div
                             initial={{ scale: 0.9 }} animate={{ scale: 1 }}
-                            style={{ width: '85%', maxWidth: '360px', background: 'var(--bg-color)', borderRadius: '16px', padding: '20px', border: '1px solid var(--border-color)' }}
+                            style={{ width: '90%', maxWidth: '400px', background: 'var(--bg-color)', borderRadius: '16px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
                         >
-                            <h3 style={{ marginBottom: '16px' }}>{showNewModal ? t('home_new') : t('home_file_rename')}</h3>
+                            <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 600 }}>{showNewModal ? t('home_new') : t('home_file_rename')}</h3>
                             <input
                                 className="repo-input" autoFocus
                                 value={newName} onChange={e => setNewName(e.target.value)}
                                 placeholder={t('home_new_placeholder')}
-                                style={{ marginBottom: '20px' }}
+                                style={{
+                                    marginBottom: '24px',
+                                    width: '100%',
+                                    height: '52px',
+                                    padding: '0 16px',
+                                    fontSize: '16px',
+                                    borderRadius: '12px',
+                                    background: 'var(--surface-color)',
+                                    border: '1px solid var(--border-color)',
+                                    color: 'var(--text-color)',
+                                    outline: 'none'
+                                }}
                             />
                             <div style={{ display: 'flex', gap: '12px' }}>
-                                <button className="btn" style={{ flex: 1 }} onClick={() => { setShowNewModal(null); setShowRenameModal(null); setNewName(''); }}>{t('common_cancel')}</button>
-                                <button className="btn btn-primary" style={{ flex: 1 }} onClick={showNewModal ? handleCreateNew : handleRenameFile}>{t('common_confirm')}</button>
+                                <button className="btn" style={{ flex: 1, height: '44px', borderRadius: '10px', fontSize: '15px', fontWeight: 600 }} onClick={() => { setShowNewModal(null); setShowRenameModal(null); setNewName(''); }}>{t('common_cancel')}</button>
+                                <button className="btn btn-primary" style={{ flex: 1, height: '44px', borderRadius: '10px', fontSize: '15px', fontWeight: 600 }} onClick={showNewModal ? handleCreateNew : handleRenameFile}>{t('common_confirm')}</button>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -470,6 +510,6 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                 .menu-item:active { background: rgba(255,255,255,0.05); }
                 .menu-item:disabled { opacity: 0.3; cursor: not-allowed; }
             `}</style>
-        </div>
+        </div >
     );
 };

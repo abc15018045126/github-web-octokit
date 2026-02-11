@@ -173,4 +173,128 @@ class OpenFolderPlugin : Plugin() {
             call.reject("Failed to list files: ${e.message}", e)
         }
     }
+
+    @PluginMethod
+    fun writeFile(call: PluginCall) {
+        val path = call.getString("path")
+        val data = call.getString("data") ?: ""
+        if (path == null) {
+            call.reject("Path is required")
+            return
+        }
+        try {
+            val file = File(path)
+            file.writeText(data)
+            call.resolve()
+        } catch (e: Exception) {
+            call.reject("Write failed: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun mkdir(call: PluginCall) {
+        val path = call.getString("path")
+        if (path == null) {
+            call.reject("Path is required")
+            return
+        }
+        try {
+            val dir = File(path)
+            if (dir.mkdirs() || dir.exists()) {
+                call.resolve()
+            } else {
+                call.reject("Failed to create directory")
+            }
+        } catch (e: Exception) {
+            call.reject("Mkdir failed: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun rename(call: PluginCall) {
+        val from = call.getString("from")
+        val to = call.getString("to")
+        if (from == null || to == null) {
+            call.reject("From and To paths are required")
+            return
+        }
+        try {
+            val source = File(from)
+            val dest = File(to)
+            if (source.renameTo(dest)) {
+                call.resolve()
+            } else {
+                call.reject("Rename failed")
+            }
+        } catch (e: Exception) {
+            call.reject("Rename error: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun delete(call: PluginCall) {
+        val path = call.getString("path")
+        val recursive = call.getBoolean("recursive", false) == true
+        if (path == null) {
+            call.reject("Path is required")
+            return
+        }
+        try {
+            val file = File(path)
+            val success = if (recursive && file.isDirectory) {
+                file.deleteRecursively()
+            } else {
+                file.delete()
+            }
+            if (success) call.resolve() else call.reject("Delete failed")
+        } catch (e: Exception) {
+            call.reject("Delete error: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun copy(call: PluginCall) {
+        val from = call.getString("from")
+        val to = call.getString("to")
+        if (from == null || to == null) {
+            call.reject("From and To paths are required")
+            return
+        }
+        try {
+            val source = File(from)
+            val dest = File(to)
+            if (source.isDirectory) {
+                source.copyRecursively(dest, overwrite = true)
+            } else {
+                source.copyTo(dest, overwrite = true)
+            }
+            call.resolve()
+        } catch (e: Exception) {
+            call.reject("Copy error: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun stat(call: PluginCall) {
+        val path = call.getString("path")
+        if (path == null) {
+            call.reject("Path is required")
+            return
+        }
+        try {
+            val file = File(path)
+            if (!file.exists()) {
+                call.reject("File exists")
+                return
+            }
+            val ret = com.getcapacitor.JSObject()
+            ret.put("type", if (file.isDirectory) "directory" else "file")
+            ret.put("size", file.length())
+            ret.put("mtime", file.lastModified())
+            ret.put("uri", Uri.fromFile(file).toString())
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.reject("Stat error: ${e.message}", e)
+        }
+    }
 }

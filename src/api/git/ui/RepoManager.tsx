@@ -3,7 +3,7 @@ import {
     GitBranch, Folder, Clock, RefreshCw, MoreVertical,
     Trash2, CloudDownload, CloudUpload, Zap,
     ChevronLeft, Timer, Plus, Search, X, Edit2, Check, Settings,
-    Sun, Moon, Languages, UserCircle
+    UserCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GitApi } from '../index';
@@ -21,8 +21,10 @@ interface ManagedRepo {
 }
 
 export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-    const { t, changeLanguage } = useI18n();
+    const { t } = useI18n();
     const { user, logout: ghLogout, isAuthenticated } = useGitHub();
+
+    // State management for repositories and UI
     const [repos, setRepos] = useState<ManagedRepo[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
@@ -30,9 +32,6 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [editingRepoId, setEditingRepoId] = useState<string | null>(null);
     const [editPath, setEditPath] = useState('');
     const [showHeaderMenu, setShowHeaderMenu] = useState(false);
-
-    // Preferences
-    const [theme, setTheme] = useState(localStorage.getItem('git_ui_theme') || 'dark');
 
     // Add Form State
     const [addForm, setAddForm] = useState({
@@ -52,7 +51,6 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     useEffect(() => {
         loadRepos();
-        applyTheme(theme);
     }, []);
 
     // Missed Sync Recovery (Gap-Correction)
@@ -88,37 +86,6 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 await handleSync(repo);
             }
         }
-    };
-
-    const applyTheme = (currentTheme: string) => {
-        const root = document.documentElement;
-        if (currentTheme === 'light') {
-            root.style.setProperty('--bg-color', '#f6f8fa');
-            root.style.setProperty('--surface-color', '#ffffff');
-            root.style.setProperty('--text-color', '#1f2328');
-            root.style.setProperty('--text-muted', '#657d8a');
-            root.style.setProperty('--border-color', '#d0d7de');
-            root.style.setProperty('--card-bg', '#ffffff');
-        } else {
-            root.style.setProperty('--bg-color', '#0d1117');
-            root.style.setProperty('--surface-color', '#161b22');
-            root.style.setProperty('--text-color', '#e6edf3');
-            root.style.setProperty('--text-muted', '#7d8590');
-            root.style.setProperty('--border-color', '#30363d');
-            root.style.setProperty('--card-bg', '#161b22');
-        }
-    };
-
-    const toggleTheme = () => {
-        const next = theme === 'dark' ? 'light' : 'dark';
-        setTheme(next);
-        localStorage.setItem('git_ui_theme', next);
-        applyTheme(next);
-    };
-
-    const toggleLang = () => {
-        changeLanguage(); // Toggles language via context
-        setShowHeaderMenu(false);
     };
 
     const loadRepos = () => {
@@ -412,21 +379,6 @@ export const RepoManager: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                                 </div>
                             </button>
 
-                            {/* Settings Section */}
-                            <div style={{ padding: '8px 0' }}>
-                                <button className="header-menu-item" onClick={toggleTheme}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                                        <span>{theme === 'dark' ? t('repoman_theme_light') : t('repoman_theme_dark')}</span>
-                                    </div>
-                                </button>
-                                <button className="header-menu-item" onClick={toggleLang}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <Languages size={18} />
-                                        <span>{t('repoman_language')}</span>
-                                    </div>
-                                </button>
-                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
