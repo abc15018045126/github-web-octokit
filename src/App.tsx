@@ -24,9 +24,10 @@ const OpenFolder = registerPlugin<OpenFolderPlugin>('OpenFolder');
 
 interface Repo {
   name: string;
-  owner: { login: string };
+  owner: { login: string; avatar_url?: string };
   full_name: string;
   html_url: string;
+  private: boolean;
 }
 
 type TabType = 'home' | 'changes' | 'history' | 'settings';
@@ -72,7 +73,7 @@ function AppContent() {
         // 直接请求所有文件访问权限
         await OpenFolder.requestAllFilesAccess();
       } catch (err) {
-        console.error('Permission request failed:', err);
+        // console.error('Permission request failed:', err);
       }
     };
 
@@ -92,10 +93,10 @@ function AppContent() {
             const resolved = await OpenFolder.resolveUriToPath({ uri: finalPath });
             if (resolved && resolved.path && !resolved.path.startsWith('content://')) {
               finalPath = resolved.path;
-              console.log('Resolved content URI to:', finalPath);
+              // console.log('Resolved content URI to:', finalPath);
             }
           } catch (e) {
-            console.warn('Path resolution failed on native side, using original', e);
+            // console.warn('Path resolution failed on native side, using original', e);
           }
         }
 
@@ -103,7 +104,7 @@ function AppContent() {
         localStorage.setItem(`git_local_path_${selectedRepo.full_name}`, finalPath);
       }
     } catch (error) {
-      console.error('Pick path failed', error);
+      // console.error('Pick path failed', error);
     }
   };
 
@@ -129,30 +130,6 @@ function AppContent() {
         <div style={{ maxWidth: '400px', width: '90%' }}>
           <Login />
         </div>
-        <button
-          onClick={async () => {
-            try {
-              console.log('Requesting file permissions...');
-              await OpenFolder.requestAllFilesAccess();
-              console.log('Permission request completed');
-            } catch (err) {
-              console.error('Permission request error:', err);
-              alert('Error: ' + JSON.stringify(err));
-            }
-          }}
-          style={{
-            padding: '12px 24px',
-            background: '#58a6ff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 600
-          }}
-        >
-          🔓 Request File Permissions (Test)
-        </button>
       </div>
     );
   }
@@ -165,7 +142,9 @@ function AppContent() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--bg-color)' }}>
       <GlobalHeader
         owner={selectedRepo.owner.login}
+        ownerAvatarUrl={selectedRepo.owner.avatar_url}
         repoName={selectedRepo.name}
+        isPrivate={selectedRepo.private}
         currentBranch={currentBranch}
         localPath={localPath}
         onRefresh={handleRefresh}

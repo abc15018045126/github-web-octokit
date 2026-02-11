@@ -9,7 +9,9 @@ import { useI18n } from '../lib/I18nContext';
 
 interface RepoSummaryProps {
     owner: string;
+    ownerAvatarUrl?: string;
     repoName: string;
+    isPrivate?: boolean;
     currentBranch: string;
     localPath: string | null;
     onRefresh: () => void;
@@ -20,9 +22,13 @@ interface RepoSummaryProps {
     refreshKey?: number;
 }
 
+import logo from '../assets/logo.png';
+
 export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     owner,
+    ownerAvatarUrl,
     repoName,
+    isPrivate,
     currentBranch,
     localPath,
     onRefresh,
@@ -33,7 +39,7 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
     refreshKey
 }) => {
     const { t } = useI18n();
-    const { octokit, token } = useGitHub();
+    const { octokit, token, user } = useGitHub();
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [status, setStatus] = useState<SyncStatus | null>(null);
     const [syncStatusText, setSyncStatusText] = useState('');
@@ -152,13 +158,29 @@ export const GlobalHeader: React.FC<RepoSummaryProps> = ({
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div onClick={onSelectRepo} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <div style={{ background: 'rgba(5, 105, 218, 0.1)', padding: '5px', borderRadius: '4px' }}>
-                            <ShieldCheck size={16} color="var(--accent-color)" />
+                        <div style={{ background: 'rgba(5, 105, 218, 0.1)', padding: '2px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            {ownerAvatarUrl || user?.avatar_url ? (
+                                <img src={ownerAvatarUrl || user?.avatar_url} alt="Icon" style={{ height: '26px', width: '26px', borderRadius: '50%' }} />
+                            ) : (
+                                <img src={logo} alt="Logo" style={{ height: '22px', width: 'auto' }} />
+                            )}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{t('header_current_repo')}</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ fontSize: '15px', fontWeight: 600 }}>{repoName}</span>
+                            <div style={{ fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {owner}/{repoName}
+                                <span style={{
+                                    fontSize: '10px',
+                                    padding: '2px 6px',
+                                    borderRadius: '12px',
+                                    background: isPrivate ? 'rgba(210, 153, 34, 0.15)' : 'rgba(46, 160, 67, 0.15)',
+                                    color: isPrivate ? '#e3b341' : '#3fb950',
+                                    fontWeight: 600,
+                                    marginLeft: '2px',
+                                    border: '1px solid currentColor'
+                                }}>
+                                    {isPrivate ? 'Private' : 'Public'}
+                                </span>
                                 <ChevronDown size={14} color="var(--text-muted)" />
                             </div>
                         </div>

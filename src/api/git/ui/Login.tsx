@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Github } from 'lucide-react';
 import { useGitHub } from '../../../lib/GitHubProvider';
 import { useI18n } from '../../../lib/I18nContext';
+import logo from '../../../assets/logo.png';
 
 interface LoginProps {
     onSuccess?: () => void;
@@ -31,7 +31,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, title }) => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
-            <Github size={48} style={{ marginBottom: '16px', color: 'var(--text-color)' }} />
+            <img src={logo} alt="Logo" style={{ width: '80px', height: 'auto', marginBottom: '16px' }} />
             <h2 style={{ marginBottom: '8px' }}>{title || t('signin_title')}</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '14px' }}>{t('signin_subtitle')}</p>
 

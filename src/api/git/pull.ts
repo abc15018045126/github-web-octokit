@@ -38,12 +38,32 @@ export async function pull(
     const oldFiles = oldState.files;
 
     onProgress?.('Downloading ZIP...');
-    const response = await CapacitorHttp.request({
-        method: 'GET',
-        url,
-        headers: authHeaders,
-        responseType: 'arraybuffer'
-    });
+    let response;
+    try {
+        response = await CapacitorHttp.request({
+            method: 'GET',
+            url,
+            headers: authHeaders,
+            responseType: 'arraybuffer'
+        });
+    } catch (e: any) {
+        // console.warn('Initial ZIP download failed, trying fallback URL...', e);
+        const fallbackUrl = `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;
+        try {
+            response = await CapacitorHttp.request({
+                method: 'GET',
+                url: fallbackUrl,
+                headers: authHeaders,
+                responseType: 'arraybuffer'
+            });
+        } catch (e2: any) {
+            throw new Error(`Failed to download repository. This is often a network or DNS issue with codeload.github.com. Original error: ${e2.message}`);
+        }
+    }
+
+    if (!response || response.status !== 200) {
+        throw new Error(`Failed to download ZIP (Status: ${response?.status}). GitHub might be blocking the request or the branch name is incorrect.`);
+    }
 
     let zipData: ArrayBuffer | Uint8Array;
     if (typeof response.data === 'string') zipData = Buffer.from(response.data, 'base64');

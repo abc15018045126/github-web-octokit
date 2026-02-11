@@ -55,7 +55,7 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
             const changes = await GitApi.getChangeList(localPath, currentBranch);
             setChangedFiles(changes);
         } catch (e: any) {
-            console.error('Failed to load changes:', e);
+            // console.error('Failed to load changes:', e);
             setError(e.message || t('changes_none'));
         } finally {
             setIsLoading(false);
@@ -109,7 +109,7 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
             setTimeout(() => onRefresh(), 500);
             setTimeout(loadChanges, 1500);
         } catch (e: any) {
-            console.error('Push failed:', e);
+            // console.error('Push failed:', e);
             setError(`Push Failed: ${e.message}`);
         } finally {
             setIsPushing(false);
@@ -195,13 +195,13 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
                 fileUri = 'file://' + fileUri;
             }
 
-            console.log('SoraEditor opening from Changes (Direct URI):', fileUri);
+            // console.log('SoraEditor opening from Changes (Direct URI):', fileUri);
             await SoraEditor.openEditor({
                 filePath: fileUri,
                 autoFocus: true
             });
         } catch (e: any) {
-            console.error('Failed to open file with SoraEditor', e);
+            // console.error('Failed to open file with SoraEditor', e);
             alert("Failed to open file: " + e.message);
         }
         setActiveFileMenu(null);
@@ -393,7 +393,7 @@ export const ChangesView: React.FC<ChangesViewProps> = ({ currentBranch, localPa
                                     value={summary}
                                     onChange={(e) => setSummary(e.target.value)}
                                     disabled={isPushing}
-                                    style={{ width: '100%', background: 'transparent', border: 'none', color: 'white', fontSize: '15px', fontWeight: 600, outline: 'none', marginBottom: '8px' }}
+                                    style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-color)', fontSize: '15px', fontWeight: 600, outline: 'none', marginBottom: '8px' }}
                                 />
                                 <textarea placeholder={t('changes_commit_desc')} value={description} onChange={(e) => setDescription(e.target.value)} disabled={isPushing} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '13px', outline: 'none', resize: 'none', height: '40px' }} />
                             </div>

@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import {
     Folder, File, Download, HardDrive, ArrowLeft,
     Home as HomeIcon, MoreVertical, Search, Clipboard, Plus,
-    X, Edit3, Trash2, Info, FilePlus, FolderPlus, Copy, Eye
+    X, Edit3, Trash2, Info, FilePlus, FolderPlus, Copy, Eye, RefreshCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { type FileInfo } from '@capacitor/filesystem';
 import { registerPlugin } from '@capacitor/core';
+import { App } from '@capacitor/app';
 
 import { SoraEditor } from 'capacitor-sora-editor';
 
@@ -63,14 +64,27 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
         return subPath ? `${base}${subPath}` : localPath;
     };
 
+    // Handle Hardware Back Button
+    useEffect(() => {
+        const backHandler = App.addListener('backButton', () => {
+            if (history.length > 0) {
+                handleBack();
+            }
+        });
+
+        return () => {
+            backHandler.then(h => h.remove());
+        };
+    }, [history]);
+
     const loadFiles = async (path: string) => {
         try {
             setError(null);
-            console.log('Listing files for path:', path);
+            // console.log('Listing files for path:', path);
 
             // Use native plugin to bypass Capacitor filesystem restrictions on absolute paths
             const result = await OpenFolder.listFiles({ path });
-            console.log('List result:', result);
+            // console.log('List result:', result);
 
             if (result && result.files) {
                 const mappedFiles = result.files.map((f: any) => ({
@@ -92,7 +106,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
             }
         } catch (e: any) {
             const msg = e.message || JSON.stringify(e);
-            console.error('Failed to read directory', msg);
+            // console.error('Failed to read directory', msg);
             // alert('读取目录失败: ' + msg); 
             setError("Error: " + msg);
             setFiles([]);
@@ -130,13 +144,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                 fileUri = 'file://' + fileUri;
             }
 
-            console.log('Opening file with SoraEditor:', fileUri);
+            // console.log('Opening file with SoraEditor:', fileUri);
             await SoraEditor.openEditor({
                 filePath: fileUri,
                 autoFocus: true
             });
         } catch (e: any) {
-            console.error('Failed to open file with SoraEditor', e);
+            // console.error('Failed to open file with SoraEditor', e);
             alert("Failed to open file: " + e.message);
         }
         setActiveFileMenu(null);
@@ -219,14 +233,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
         }
 
         const path = getFullPath() + (getFullPath().endsWith('/') ? finalName : '/' + finalName);
-        console.log('Quick creating file:', path);
+        // console.log('Quick creating file:', path);
 
         try {
             await OpenFolder.writeFile({ path, data: '' });
             await loadFiles(getFullPath());
             await handleOpenFile(finalName);
         } catch (e: any) {
-            console.error('Quick create failed', e);
+            // console.error('Quick create failed', e);
             alert('Failed to create file: ' + e.message);
         }
     };
@@ -330,6 +344,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                             </button>
                             <button className="menu-item" onClick={handlePaste} disabled={!clipboard}>
                                 <Clipboard size={16} /> <span>{t('home_more_paste_here')}</span>
+                            </button>
+                            <button className="menu-item" onClick={() => { loadFiles(getFullPath()); setShowDirMoreMenu(false); }}>
+                                <RefreshCcw size={16} /> <span>{t('common_refresh') || 'Refresh'}</span>
                             </button>
                             <div style={{ borderTop: '1px solid var(--border-color)' }} />
                             <button className="menu-item" onClick={() => { setShowNewModal('file'); setNewName(''); setShowDirMoreMenu(false); }}>

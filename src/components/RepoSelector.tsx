@@ -80,7 +80,20 @@ export const RepoSelector: React.FC<{ onSelect: (repo: Repo) => void }> = ({ onS
                     >
                         <Book size={20} color={repo.private ? '#e3b341' : '#8b949e'} />
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontWeight: 600, fontSize: '14px' }}>{repo.full_name}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontWeight: 600, fontSize: '14px' }}>{repo.full_name}</span>
+                                <span style={{
+                                    fontSize: '10px',
+                                    padding: '1px 5px',
+                                    borderRadius: '10px',
+                                    background: repo.private ? 'rgba(210, 153, 34, 0.15)' : 'rgba(46, 160, 67, 0.15)',
+                                    color: repo.private ? '#e3b341' : '#3fb950',
+                                    fontWeight: 600,
+                                    border: '1px solid currentColor'
+                                }}>
+                                    {repo.private ? 'Private' : 'Public'}
+                                </span>
+                            </div>
                             {repo.description && <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }}>{repo.description}</span>}
                         </div>
                     </div>
