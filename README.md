@@ -155,3 +155,20 @@ On Android/iOS, you must ensure the following permissions are handled in your na
 ## 📜 License
 
 MIT © [Octokit Contributors]
+
+---
+
+## 🤖 F-Droid & Open Source
+
+This project is proudly open-source and conforms to F-Droid's inclusion criteria.
+
+### Build from Source
+To build the APK from source, ensure you have Node.js and Android Studio/SDK installed:
+
+1.  **Clone the Repo**: `git clone https://github.com/abc15018045126/github-web-octokit.git`
+2.  **Install Deps**: `npm install`
+3.  **Build Web Assets**: `npm run build`
+4.  **Sync Capacitor**: `npx cap sync android`
+5.  **Compile APK**: `cd android && ./gradlew assembleDebug` (on Windows use `gradlew.bat`)
+
+The resulting APK will be at `android/app/build/outputs/apk/debug/app-debug.apk`.

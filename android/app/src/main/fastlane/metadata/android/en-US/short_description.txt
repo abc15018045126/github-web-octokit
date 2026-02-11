@@ -1,0 +1,1 @@
+A powerful Git client for mobile devices.
