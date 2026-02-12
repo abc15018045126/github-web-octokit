@@ -186,6 +186,24 @@ export const SettingsView: React.FC = () => {
                 </div>
             </div>
 
+            {/* About Section */}
+            <h4 style={{ fontSize: '13px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', marginLeft: '4px' }}>
+                {t('settings_about')}
+            </h4>
+            <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '16px' }}>
+                <div
+                    onClick={() => Browser.open({ url: 'https://github.com/abc15018045126/github-web-octokit' })}
+                    style={{ padding: '12px 16px', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                >
+                    <Github size={20} color="var(--text-muted)" />
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '14px', fontWeight: 500 }}>{t('settings_developer')}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--accent-color)' }}>@abc15018045126</div>
+                    </div>
+                    <ExternalLink size={14} color="var(--text-muted)" />
+                </div>
+            </div>
+
             {/* Logout Button */}
             <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '32px' }}>
                 <button
@@ -210,7 +228,7 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-                GitHub Web Octokit v0.0.5<br />
+                GitHub Web Octokit v0.0.8<br />
                 Built with Octokit.js
             </p>
         </div>
