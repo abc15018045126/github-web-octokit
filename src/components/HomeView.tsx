@@ -48,6 +48,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
     // File Manager States
     const [clipboard, setClipboard] = useState<{ path: string, name: string, type: string, operation: 'copy' | 'move' } | null>(null);
 
+    // Search State
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
     useEffect(() => {
         setCurrentSubPath('');
         setHistory([]);
@@ -272,6 +276,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
         return `${localPath.split('/').pop()}${currentSubPath ? ' / ' + currentSubPath : ''}`;
     };
 
+    const filteredFiles = searchQuery
+        ? files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        : files;
+
     if (!localPath) {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '20px', textAlign: 'center' }}>
@@ -293,24 +301,52 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
             {/* Header / Breadcrumb */}
-            <div style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {currentSubPath !== '' ? (
-                    <button onClick={handleBack} style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer', padding: '4px' }}>
-                        <ArrowLeft size={18} />
-                    </button>
+            <div style={{ padding: '8px 16px', height: '56px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {isSearching ? (
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'var(--surface-color)', borderRadius: '10px', padding: '0 12px', height: '40px', border: '1px solid var(--border-color)' }}
+                    >
+                        <Search size={16} color="var(--text-muted)" style={{ marginRight: '8px' }} />
+                        <input
+                            autoFocus
+                            placeholder={t('home_more_search') || "Search files..."}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{ flex: 1, background: 'none', border: 'none', color: 'var(--text-color)', fontSize: '14px', outline: 'none' }}
+                        />
+                        <button
+                            onClick={() => { setIsSearching(false); setSearchQuery(''); }}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', display: 'flex', padding: '4px' }}
+                        >
+                            <X size={18} />
+                        </button>
+                    </motion.div>
                 ) : (
-                    <div style={{ padding: '4px' }}><HomeIcon size={18} color="var(--text-muted)" /></div>
+                    <>
+                        {currentSubPath !== '' ? (
+                            <button onClick={handleBack} style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer', padding: '4px' }}>
+                                <ArrowLeft size={18} />
+                            </button>
+                        ) : (
+                            <div style={{ padding: '4px' }}><HomeIcon size={18} color="var(--text-muted)" /></div>
+                        )}
+
+                        <div style={{ flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontSize: '13px', fontWeight: 600 }}>
+                            {getDisplayPath()}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => setIsSearching(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', padding: '4px' }}>
+                                <Search size={18} />
+                            </button>
+                            <button onClick={() => setShowDirMoreMenu(!showDirMoreMenu)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', padding: '4px' }}>
+                                <MoreVertical size={18} />
+                            </button>
+                        </div>
+                    </>
                 )}
-
-                <div style={{ flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontSize: '13px', fontWeight: 600 }}>
-                    {getDisplayPath()}
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => setShowDirMoreMenu(!showDirMoreMenu)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', padding: '4px' }}>
-                        <MoreVertical size={18} />
-                    </button>
-                </div>
             </div>
 
             {/* Action Buttons Floating */}
@@ -339,7 +375,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                                 boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
                             }}
                         >
-                            <button className="menu-item" onClick={() => { alert("Search not implemented"); setShowDirMoreMenu(false); }}>
+                            <button className="menu-item" onClick={() => { setIsSearching(true); setShowDirMoreMenu(false); }}>
                                 <Search size={16} /> <span>{t('home_more_search')}</span>
                             </button>
                             <button className="menu-item" onClick={handlePaste} disabled={!clipboard}>
@@ -416,13 +452,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ localPath, onPathSelect }) =
                                 exit={{ opacity: 0, x: -10 }}
                                 transition={{ duration: 0.2 }}
                             >
-                                {files.length === 0 ? (
+                                {filteredFiles.length === 0 ? (
                                     <div style={{ padding: '80px 40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                         <Folder size={48} style={{ opacity: 0.1, marginBottom: '16px', margin: '0 auto' }} />
-                                        <p style={{ fontSize: '14px' }}>{t('explorer_empty')}</p>
+                                        <p style={{ fontSize: '14px' }}>{searchQuery ? t('explorer_no_results') || 'No results found' : t('explorer_empty')}</p>
                                     </div>
                                 ) : (
-                                    files.map((file) => (
+                                    filteredFiles.map((file) => (
                                         <div
                                             key={file.name}
                                             onClick={() => file.type === 'directory' ? handleFolderClick(file.name) : handleOpenFile(file.name)}

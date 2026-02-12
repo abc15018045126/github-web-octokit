@@ -35,6 +35,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
         explorer_access_error: "⚠️ Access Error",
         explorer_change_root: "Change Root Folder",
         explorer_empty: "This folder is empty",
+        explorer_no_results: "No results found",
 
         changes_title: "Local Changes",
         changes_remote: "Remote URL",
@@ -207,6 +208,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
         explorer_access_error: "⚠️ 访问错误",
         explorer_change_root: "更改根文件夹",
         explorer_empty: "此文件夹为空",
+        explorer_no_results: "未找到搜索结果",
 
         changes_title: "本地变更",
         changes_remote: "远程地址",
@@ -379,6 +381,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
         explorer_access_error: "⚠️ خطأ في الوصول",
         explorer_change_root: "تغيير المجلد الجذري",
         explorer_empty: "هذا المجلد فارغ",
+        explorer_no_results: "لم يتم العثور على نتائج",
 
         changes_title: "التغييرات المحلية",
         changes_remote: "URL البعيد",
@@ -477,6 +480,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
         explorer_access_error: "⚠️ Erreur d'accès",
         explorer_change_root: "Changer le dossier racine",
         explorer_empty: "Ce dossier est vide",
+        explorer_no_results: "Aucun résultat trouvé",
 
         changes_title: "Changements locaux",
         changes_remote: "URL Distante",
@@ -575,6 +579,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
         explorer_access_error: "⚠️ Ошибка доступа",
         explorer_change_root: "Сменить корневую папку",
         explorer_empty: "Эта папка пуста",
+        explorer_no_results: "Результаты не найдены",
 
         changes_title: "Локальные изменения",
         changes_remote: "Удаленный URL",
@@ -673,6 +678,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
         explorer_access_error: "⚠️ Error de acceso",
         explorer_change_root: "Cambiar carpeta raíz",
         explorer_empty: "Esta carpeta está vacía",
+        explorer_no_results: "No se encontraron resultados",
 
         changes_title: "Cambios locales",
         changes_remote: "URL remota",
