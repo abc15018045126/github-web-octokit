@@ -1,0 +1,1 @@
+github-web-octokit is a modular, powerful Git API and UI library for Capacitor mobile apps, built on Octokit. It provides a seamless interface for interacting with Git repositories and includes a feature-rich UI for common Git operations.

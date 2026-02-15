@@ -1,0 +1,1 @@
+A modular Git API and UI library for Capacitor mobile apps.
